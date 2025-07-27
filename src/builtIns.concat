@@ -2,7 +2,7 @@ import "common.concat"
 import map
 using std.literals.
 
-enum( ADD_I32 SUB_I32 MUL_I32 DUP PRINT ) =:: export: BuiltIn
+enum( ADD_I32 SUB_I32 MUL_I32 LT_I32 EQ_I32 DUP SWAP OVER DROP PRINT ) =:: export: BuiltIn
 
 proc( Program ptr.mut : program -> ) =>: export: initBuiltIns
   program [] .procedures
@@ -18,6 +18,14 @@ proc( Program ptr.mut : program -> ) =>: export: initBuiltIns
     { Type .I32 Type .I32 } slice.wrap
       BuiltIn .MUL_I32 ProcImplementation .builtIn
     Procedure new list.append
+    $ .length ProcId cast.u =:: LT_I32_ID
+    { Type .I32 Type .I32 } slice.wrap
+      BuiltIn .LT_I32 ProcImplementation .builtIn
+    Procedure new list.append
+    $ .length ProcId cast.u =:: EQ_I32_ID
+    { Type .I32 Type .I32 } slice.wrap
+      BuiltIn .EQ_I32 ProcImplementation .builtIn
+    Procedure new list.append
     $ .length ProcId cast.u =:: PRINT_ID
     { Type .NONE } slice.wrap
       BuiltIn .PRINT ProcImplementation .builtIn
@@ -26,12 +34,29 @@ proc( Program ptr.mut : program -> ) =>: export: initBuiltIns
     { Type .NONE } slice.wrap
       BuiltIn .DUP ProcImplementation .builtIn
     Procedure new list.append
+    $ .length ProcId cast.u =:: SWAP_ID
+    { Type .NONE Type .NONE } slice.wrap
+      BuiltIn .SWAP ProcImplementation .builtIn
+    Procedure new list.append
+    $ .length ProcId cast.u =:: OVER_ID
+    { Type .NONE Type .NONE } slice.wrap
+      BuiltIn .OVER ProcImplementation .builtIn
+    Procedure new list.append
+    $ .length ProcId cast.u =:: DROP_ID
+    { Type .NONE } slice.wrap
+      BuiltIn .DROP ProcImplementation .builtIn
+    Procedure new list.append
   program .procedures=
   program .identifiers "+":s ADD_I32_ID Identifier .Procedure map.put ..drop
   program .identifiers "-":s SUB_I32_ID Identifier .Procedure map.put ..drop
   program .identifiers "*":s MUL_I32_ID Identifier .Procedure map.put ..drop
+  program .identifiers "<":s LT_I32_ID Identifier .Procedure map.put ..drop
+  program .identifiers "==":s EQ_I32_ID Identifier .Procedure map.put ..drop
   program .identifiers "print":s PRINT_ID Identifier .Procedure map.put ..drop
   program .identifiers "$":s DUP_ID Identifier .Procedure map.put ..drop
+  program .identifiers ">$":s SWAP_ID Identifier .Procedure map.put ..drop
+  program .identifiers "$1":s OVER_ID Identifier .Procedure map.put ..drop
+  program .identifiers "..drop":s DROP_ID Identifier .Procedure map.put ..drop
 end
 proc( BuiltIn : builtIn Program ptr.mut : program -> )  =>: export: evaluateBuiltIn
   builtIn switch
@@ -58,9 +83,41 @@ proc( BuiltIn : builtIn Program ptr.mut : program -> )  =>: export: evaluateBuil
         a asI32 b asI32 * i64 cast.u Value .Int Type .I32 TypedValue new list.push
       program .stack=
       break
+    LT_I32 case
+      program [] .stack
+        list.pop =:: b
+        list.pop =:: a
+        a asI32 b asI32 < Value .Bool Type .BOOL TypedValue new list.push
+      program .stack=
+      break
+    EQ_I32 case
+      program [] .stack
+        list.pop =:: b
+        list.pop =:: a
+        a asI32 b asI32 == Value .Bool Type .BOOL TypedValue new list.push
+      program .stack=
+      break
     DUP case
       program [] .stack
         $ list.peek .data list.appendP
+      program .stack=
+      break
+    SWAP case
+      program [] .stack
+        list.pop =:: a
+        list.pop =:: b
+        a list.push
+        b list.push
+      program .stack=
+      break
+    OVER case
+      program [] .stack
+        $ $ .length 2:iSize - [] list.push
+      program .stack=
+      break
+    DROP case
+      program [] .stack
+        list.pop ..drop
       program .stack=
       break
     PRINT case
