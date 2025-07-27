@@ -174,7 +174,67 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
         whileIndex program [] .tokens .length i32 cast.u -
           BlockType .WHILE
         CodeBlock new Token .EndBlock return
+      compositeBlock case "error handling" ..panic
     end
+  else word "(":s string.eq _if
+    program [] .openBlocks
+      ## CompositeBlockInfo
+        program [] .tokens .length i32 cast.u ## blockStart
+        -1 ## toIndex
+        CompositeType .NONE
+      CompositeBlockInfo new BlockInfo .compositeBlock list.push
+    program .openBlocks=
+    -1 BlockType .TUPLE CodeBlock new Token .Block return
+  else word "proc(":s string.eq _if
+    program [] .openBlocks
+      ## CompositeBlockInfo
+        program [] .tokens .length i32 cast.u ## blockStart
+        -1 ## toIndex
+        CompositeType .PROC
+      CompositeBlockInfo new BlockInfo .compositeBlock list.push
+    program .openBlocks=
+    -1 BlockType .PROC CodeBlock new Token .Block return
+  else word "struct(":s string.eq _if
+    program [] .openBlocks
+      ## CompositeBlockInfo
+        program [] .tokens .length i32 cast.u ## blockStart
+        -1 ## toIndex
+        CompositeType .TUPLE
+      CompositeBlockInfo new BlockInfo .compositeBlock list.push
+    program .openBlocks=
+    -1 BlockType .TUPLE CodeBlock new Token .Block return
+  else word "->":s string.eq _if
+    program [] .openBlocks list.peek =:: procBlock?
+    procBlock? .data .compositeBlock =:: procBlock
+    procBlock .compType [] .NONE ?? if
+      BlockType .PROC program [] .tokens procBlock [] .blockStart @[] .Block .blockType=
+      CompositeType .PROC procBlock .compType=
+    else procBlock .compType [] .PROC ?? ! or procBlock [] .toIndex -1 != _if
+      "error handling" ..panic
+    end
+    program [] .tokens .length i32 cast.u procBlock .toIndex=
+    0 BlockType .TO CodeBlock new Token .Block return
+  else word ")":s string.eq _if
+    program [] .openBlocks
+      list.pop =:: closed
+    program .openBlocks=
+    closed .compositeBlock ?? ! if
+      "error handling" ..panic
+    end
+    closed .compositeBlock .blockStart =:: startIndex
+    program [] .tokens .length i32 cast.u startIndex -
+      program [] .tokens startIndex @[]
+    .Block .target=
+    closed .compositeBlock .compType switch
+      NONE TUPLE case BlockType .TUPLE break
+      PROC case
+        closed .compositeBlock .toIndex =:: toIndex
+        program [] .tokens .length i32 cast.u toIndex -
+          program [] .tokens toIndex @[]
+        .Block .target=
+        BlockType .PROC break
+    end =:: blockType
+    0 blockType CodeBlock new Token .EndBlock return
   end
   word .length 2:iSize u>= and word $ .length 1:iSize - string.charAt '=' == and
       word .length 2:iSize u> or "<>=!":s word 0 string.charAt string.contains ! if
@@ -262,6 +322,7 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
             end
             break
           ELSE case ip token .Block .target + ip= break
+          TUPLE PROC TO case ip token .Block .target + ip= break ## skip type-blocks (for now)
           WHILE case break ## nothing to do
         end
         break
