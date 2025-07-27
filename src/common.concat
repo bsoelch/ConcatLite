@@ -1,10 +1,13 @@
 import stringIO
+import arenaAlloc
+import map
 import numbers/printNumbers
 using std.literals.
 
-enum( NONE I8 I16 I32 I64 F16 F32 F64 ) =:: export: Type
+enum( NONE BOOL I8 I16 I32 I64 F16 F32 F64 ) =:: export: Type
 i32 =:: export: ProcId
 union(
+  bool : Bool
   i64 : Int
 ) =:: export: Value
 struct(
@@ -14,6 +17,7 @@ struct(
 proc( Type : t -> ) =>: export: printType
   t switch
     NONE case "?":s break
+    BOOL case "bool":s break
     I8 case "i8":s break
     I16 case "i16":s break
     I32 case "i32":s break
@@ -26,12 +30,25 @@ end
 proc( Value : val -> ) =>: export: printValue
   val switch
     Int case val .Int io.print break
+    Bool case val .Bool if "true":s else "false":s end io.print break
   end
 end
 proc( TypedValue : val -> ) =>: export: printTypedValue
   val .valType printType
   ": ":s io.print
   val .value printValue
+end
+proc( TypedValue : val -> bool ) =>: export: asBool
+  #+val .valType .BOOL ?? ! and val .valType .NONE ?? ! if
+    "error handling" ..panic
+  end+#
+  val .value .Int ?? if
+    val .value .Int ? return ## temporarely accept ints as bool
+  end
+  val .value .Bool ?? ! if
+    "error handling" ..panic
+  end
+  val .value .Bool
 end
 proc( TypedValue : val -> i32 ) =>: export: asI32
   val .valType .I32 ?? ! and val .valType .NONE ?? ! if
@@ -43,11 +60,26 @@ proc( TypedValue : val -> i32 ) =>: export: asI32
   val .value .Int i32 cast
 end
 
-
+enum( IF ELSE WHILE DO ) =:: export: BlockType
+struct(
+  i32 : target
+  BlockType : blockType
+) =:: export: CodeBlock
+proc( CodeBlock : block -> ) =>: export: printBlock
+  block .blockType switch
+    IF    case "if -> ":s    io.print break
+    ELSE  case "else -> ":s  io.print break
+    WHILE case "while -> ":s io.print break
+    DO    case "do -> ":s    io.print break
+  end
+  block .target io.println
+end
 union(
   string : Identifier
   i64 : Integer
   f64 : Float
+  CodeBlock : Block
+  CodeBlock : EndBlock
   _ : EOF
 ) =:: export: Token
 proc( Token : token -> ) =>: export: printToken
@@ -63,6 +95,12 @@ proc( Token : token -> ) =>: export: printToken
       break
     Float case
       "Float: ":s io.print token .Float io.println
+      break
+    Block case
+      "Block: ":s io.print token .Block printBlock
+      break
+    EndBlock case
+      "EndBlock: ":s io.print token .EndBlock printBlock
       break
     EOF case
       "EOF":s io.println
@@ -82,4 +120,28 @@ struct(
   Type slice : arguments
   ProcImplementation : implementation
 ) =:: export: Procedure
-type : export: Program
+struct(
+  i32 : ifIndex
+  i32 : elseIndex
+  bool : autoClose
+) =:: export: IfBlockInfo
+struct(
+  i32 : whileIndex
+  i32 : doIndex
+  ## TODO support break/continue
+) =:: export: WhileBlockInfo
+union(
+  IfBlockInfo : ifBlock
+  WhileBlockInfo : whileBlock
+) =:: export: BlockInfo
+struct(
+  MixedArenaAllocator : memory
+  Procedure list : procedures
+  string Identifier hashMap : identifiers
+  TypedValue list : stack
+  ## parser state
+  BlockInfo list : openBlocks
+  Token list : tokens
+  i32 : parseOffset
+  bool : running
+) =:: export: Program

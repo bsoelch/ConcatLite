@@ -2,7 +2,7 @@ import "common.concat"
 import map
 using std.literals.
 
-enum( ADD_I32 SUB_I32 MUL_I32 PRINT ) =:: export: BuiltIn
+enum( ADD_I32 SUB_I32 MUL_I32 DUP PRINT ) =:: export: BuiltIn
 
 proc( Program ptr.mut : program -> ) =>: export: initBuiltIns
   program [] .procedures
@@ -22,11 +22,16 @@ proc( Program ptr.mut : program -> ) =>: export: initBuiltIns
     { Type .NONE } slice.wrap
       BuiltIn .PRINT ProcImplementation .builtIn
     Procedure new list.append
+    $ .length ProcId cast.u =:: DUP_ID
+    { Type .NONE } slice.wrap
+      BuiltIn .DUP ProcImplementation .builtIn
+    Procedure new list.append
   program .procedures=
   program .identifiers "+":s ADD_I32_ID Identifier .Procedure map.put ..drop
   program .identifiers "-":s SUB_I32_ID Identifier .Procedure map.put ..drop
   program .identifiers "*":s MUL_I32_ID Identifier .Procedure map.put ..drop
   program .identifiers "print":s PRINT_ID Identifier .Procedure map.put ..drop
+  program .identifiers "$":s DUP_ID Identifier .Procedure map.put ..drop
 end
 proc( BuiltIn : builtIn Program ptr.mut : program -> )  =>: export: evaluateBuiltIn
   builtIn switch
@@ -51,6 +56,11 @@ proc( BuiltIn : builtIn Program ptr.mut : program -> )  =>: export: evaluateBuil
         list.pop =:: b
         list.pop =:: a
         a asI32 b asI32 * i64 cast.u Value .Int Type .I32 TypedValue new list.push
+      program .stack=
+      break
+    DUP case
+      program [] .stack
+        $ list.peek .data list.appendP
       program .stack=
       break
     PRINT case

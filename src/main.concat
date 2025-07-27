@@ -1,9 +1,7 @@
 import io
 import stringIO
-import arenaAlloc
 import numbers
 import chars
-import map
 using std.literals.
 
 import "common.concat"
@@ -18,18 +16,6 @@ proc( stringBuilder -> stringBuilder ) =>: readLine
   end
 end
 
-struct(
-  MixedArenaAllocator : memory
-  Procedure list : procedures
-  string Identifier hashMap : identifiers
-  TypedValue list : stack
-  ## parser state
-  ## TODO remember open blocks
-  Token list : tokens
-  i32 : parseOffset
-  bool : running
-) =:: export: Program
-
 proc( MixedArenaAllocator ptr.mut : alloc string : str -> string ) =>: copyString
   alloc [] str string.chars mixedArena.copySlice slice.freeze string.fromChars >$ alloc =[]
 end
@@ -37,7 +23,7 @@ end
 proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
   0 =:: mut: i0
   ## skip leading spaces
-  while next .length 0:iSize != and next 0 string.charAt char.isSpace do i0 1 + i0= end
+  while next .length 0:iSize != and next i0 string.charAt char.isSpace do i0 1 + i0= end
   next i0 string.tail next=
   next .length 0:iSize == if
     i0 Token .EOF return
@@ -63,15 +49,45 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
     end
   end
   word "if":s string.eq if
-    "unimplemented" ..panic
+    program [] .openBlocks
+      ## IfBlockInfo
+        program [] .tokens .length i32 cast.u ## ifIndex
+        -1 ## elseIndex
+        false ## autoClose
+      IfBlockInfo new BlockInfo .ifBlock list.push
+    program .openBlocks=
+    -1 BlockType .IF CodeBlock new Token .Block return
   else word "_if":s string.eq _if
-    "unimplemented" ..panic
+    program [] .openBlocks
+      ## IfBlockInfo
+        program [] .tokens .length i32 cast.u ## ifIndex
+        -1 ## elseIndex
+        true ## autoClose
+      IfBlockInfo new BlockInfo .ifBlock list.push
+    program .openBlocks=
+    -1 BlockType .IF CodeBlock new Token .Block return
   else word "else":s string.eq _if
-    "unimplemented" ..panic
+    program [] .openBlocks list.peek =:: ifBlock?
+    ifBlock? .data .ifBlock =:: ifBlock
+    program [] .tokens .length i32 cast.u ifBlock .elseIndex=
+    ifBlock [] .ifIndex =:: ifIndex
+    program [] .tokens .length i32 cast.u ifIndex -
+      program [] .tokens ifIndex @[]
+    .Block .target=
+    -1 BlockType .ELSE CodeBlock new Token .Block return
   else word "while":s string.eq _if
-    "unimplemented" ..panic
+    program [] .openBlocks
+      ## WhileBlockInfo
+        program [] .tokens .length i32 cast.u ## whileIndex
+        -1 ## doIndex
+      WhileBlockInfo new BlockInfo .whileBlock list.push
+    program .openBlocks=
+    0 BlockType .WHILE CodeBlock new Token .Block return
   else word "do":s string.eq _if
-    "unimplemented" ..panic
+    program [] .openBlocks list.peek =:: whileBlock?
+    whileBlock? .data .whileBlock =:: whileBlock
+    program [] .tokens .length i32 cast.u whileBlock .doIndex=
+    -1 BlockType .DO CodeBlock new Token .Block return
   else word "finally":s string.eq _if
     "unimplemented" ..panic
   else word "break":s string.eq _if
@@ -79,7 +95,43 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
   else word "continue":s string.eq _if
     "unimplemented" ..panic
   else word "end":s string.eq _if
-    "unimplemented" ..panic
+    program [] .openBlocks
+      list.pop =:: closed
+    program .openBlocks=
+    ## TODO handle closed block (insert correct jump-distances into operations
+    closed switch
+      ifBlock case
+        closed .ifBlock .elseIndex =:: elseIndex
+        elseIndex -1 == if ## no (explicit) else
+          closed .ifBlock .ifIndex =:: ifIndex
+          program [] .tokens .length i32 cast.u ifIndex -
+            program [] .tokens ifIndex @[]
+          .Block .target=
+          program [] .tokens
+            1 BlockType .ELSE CodeBlock new Token .Block list.append
+          program .tokens=
+        else
+          program [] .tokens .length i32 cast.u elseIndex -
+            program [] .tokens elseIndex @[]
+          .Block .target=
+        end
+        0 BlockType .IF CodeBlock new Token .EndBlock return
+      whileBlock case
+        closed .whileBlock .whileIndex =:: whileIndex
+        closed .whileBlock .doIndex =:: doIndex
+        doIndex -1 == if ## no (explicit) do
+          program [] .tokens
+            1 BlockType .DO CodeBlock new Token .Block list.append
+          program .tokens=
+        else
+          program [] .tokens .length i32 cast.u doIndex -
+            program [] .tokens doIndex @[]
+          .Block .target=
+        end
+        whileIndex program [] .tokens .length i32 cast.u -
+          BlockType .WHILE
+        CodeBlock new Token .EndBlock return
+    end
   end
   ## TODO? resolve identifiers outside procedures at parse time
   program .memory word copyString Token .Identifier
@@ -99,10 +151,10 @@ proc( string : line Program ptr.mut : program -> bool ) =>: parseLine
       token list.append
     program .tokens=
   end
-  program [] .parseOffset iSize cast.u line .length u< if
+  program [] .parseOffset iSize cast.u line .length u< or
+      program [] .openBlocks .length 0:iSize != if
     true return
   end
-  ## TODO ensure there are no open blocks
   program [] .tokens for printToken end
   ## TODO? type-check before interpreting
   program [] .tokens list.asSlice program evaluateBlock
@@ -152,6 +204,23 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
         program .stack=
         break
       Float case "Floats are not supported" ..panic
+      Block case
+        token .Block .blockType switch
+          IF DO case
+            program [] .stack
+              list.pop =:: cond
+            program .stack=
+            cond asBool ! if
+              ip token .Block .target + ip=
+            end
+            break
+          ELSE case ip token .Block .target + ip= break
+          WHILE case break ## nothing to do
+        end
+        break
+      EndBlock case
+        ip token .EndBlock .target + ip=
+        break
       EOF case return
     end
   finally ip 1 + ip= end
@@ -164,6 +233,7 @@ proc( -> ) =>: main
     128 Procedure list.create
     string.hash@ string.eq@ 1024 Identifier map.create
     128 TypedValue list.create
+    128 BlockInfo list.create
     128 Token list.create
     0:i32
     true
