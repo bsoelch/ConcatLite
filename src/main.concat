@@ -1,0 +1,329 @@
+import io
+import stringIO
+import arenaAlloc
+import numbers
+import chars
+import map
+using std.literals.
+
+import numbers/printNumbers
+
+proc( stringBuilder -> stringBuilder ) =>: readLine
+  while
+    io.getChar ..drop =:: mut: c
+    c '\n' !=
+  do
+    c sb.appendC
+  end
+end
+
+union(
+  string : Identifier
+  i64 : Integer
+  f64 : Float
+  _ : EOF
+) =:: Token
+proc( Token : token -> ) =>: printToken
+  "* ":s io.print
+  token switch
+    Identifier case
+      "Identifier: \"":s io.print
+      token .Identifier io.print
+      "\"":s io.println
+      break
+    Integer case
+      "Int: ":s io.print token .Integer io.println
+      break
+    Float case
+      "Float: ":s io.print token .Float io.println
+      break
+    EOF case
+      "EOF":s io.println
+      break
+  end
+end
+
+enum( NONE I8 I16 I32 I64 F16 F32 F64 ) =:: Type
+i32 =:: ProcId
+union(
+  i64 : Int
+) =:: Value
+struct(
+  Value : value
+  Type : valType
+) =:: TypedValue
+proc( Type : t -> ) =>: printType
+  t switch
+    NONE case "?":s break
+    I8 case "i8":s break
+    I16 case "i16":s break
+    I32 case "i32":s break
+    I64 case "i64":s break
+    F16 case "f16":s break
+    F32 case "f32":s break
+    F64 case "f64":s break
+  end io.print
+end
+proc( Value : val -> ) =>: printValue
+  val switch
+    Int case val .Int io.print break
+  end
+end
+proc( TypedValue : val -> ) =>: printTypedValue
+  val .valType printType
+  ": ":s io.print
+  val .value printValue
+end
+proc( TypedValue : val -> i32 ) =>: asI32
+  val .valType .I32 ?? ! and val .valType .NONE ?? ! if
+    "error handling" ..panic
+  end
+  val .value .Int ?? ! if
+    "error handling" ..panic
+  end
+  val .value .Int i32 cast
+end
+
+union(
+  ProcId : Procedure
+  TypedValue : Variable
+) =:: Identifier
+enum( ADD_I32 SUB_I32 MUL_I32 PRINT ) =:: BuiltIn
+union(
+  Token slice : code
+  BuiltIn : builtIn
+) =:: ProcImplementation
+struct(
+  Type slice : arguments
+  ProcImplementation : implementation
+) =:: Procedure
+
+struct(
+  MixedArenaAllocator : memory
+  Procedure list : procedures
+  string Identifier hashMap : identifiers
+  TypedValue list : stack
+  ## parser state
+  ## TODO remember open blocks
+  Token list : tokens
+  i32 : parseOffset
+  bool : running
+) =:: Program
+
+proc( MixedArenaAllocator ptr.mut : alloc string : str -> string ) =>: copyString
+  alloc [] str string.chars mixedArena.copySlice slice.freeze string.fromChars >$ alloc =[]
+end
+
+proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
+  0 =:: mut: i0
+  ## skip leading spaces
+  while next .length 0:iSize != and next 0 string.charAt char.isSpace do i0 1 + i0= end
+  next i0 string.tail next=
+  next .length 0:iSize == if
+    i0 Token .EOF return
+  end
+  0 =:: mut: i
+  while i iSize cast.u next .length u< and next i string.charAt char.isSpace ! do
+    i 1 + i=
+  end
+  i0 i + 1 +
+  next i string.head =:: word
+  word .length 0:iSize != and word 0 string.charAt char.isDigit if
+    word 0 number.tryParseInt switch
+      NONE case Token .Integer return
+      UNSIGNED case ## TODO warning
+        Token .Integer return
+      SIGN case "error handling" ..panic
+      OVERFLOW case "error handling" ..panic
+      default ..drop break
+    end
+    word 0 number.tryParseFloat switch
+      NONE INT case Token .Float return
+      default "error handling" ..panic
+    end
+  end
+  word "if":s string.eq if
+    "unimplemented" ..panic
+  else word "_if":s string.eq _if
+    "unimplemented" ..panic
+  else word "else":s string.eq _if
+    "unimplemented" ..panic
+  else word "while":s string.eq _if
+    "unimplemented" ..panic
+  else word "do":s string.eq _if
+    "unimplemented" ..panic
+  else word "finally":s string.eq _if
+    "unimplemented" ..panic
+  else word "break":s string.eq _if
+    "unimplemented" ..panic
+  else word "continue":s string.eq _if
+    "unimplemented" ..panic
+  else word "end":s string.eq _if
+    "unimplemented" ..panic
+  end
+  ## TODO? resolve identifiers outside procedures at parse time
+  program .memory word copyString Token .Identifier
+end
+## parse a single line returns true if line needs to be continued
+proc( string : line Program ptr.mut : program -> bool ) =>: parseLine
+  line "exit":s string.eq if
+    false program .running=
+    false return
+  end
+  while
+    line program [] .parseOffset string.tail program nextToken =:: token =:: consumed
+    program [] .parseOffset consumed + program .parseOffset=
+    token .EOF ?? !
+  do ## TODO make sure to copy strings
+    program [] .tokens
+      token list.append
+    program .tokens=
+  end
+  program [] .parseOffset iSize cast.u line .length u< if
+    true return
+  end
+  ## TODO ensure there are no open blocks
+  program [] .tokens for printToken end
+  ## TODO? type-check before interpreting
+  program [] .tokens list.asSlice program evaluateBlock
+  false return
+end
+
+proc( ProcId : procId Program ptr.mut : program -> ) =>: evaluateCall
+  program [] .procedures procId iSize cast.u [] =:: procData
+  ## TODO? check arguments
+  procData .implementation switch
+    code case procData .implementation .code program evaluateBlock break
+    builtIn case
+      procData .implementation .builtIn switch
+        ## TODO? extract common code
+        ## TODO check stack size
+        ADD_I32 case
+          program [] .stack
+            list.pop =:: b
+            list.pop =:: a
+            a asI32 b asI32 + i64 cast.u Value .Int Type .I32 TypedValue new list.push
+          program .stack=
+          break
+        SUB_I32 case
+          program [] .stack
+            list.pop =:: b
+            list.pop =:: a
+            a asI32 b asI32 - i64 cast.u Value .Int Type .I32 TypedValue new list.push
+          program .stack=
+          break
+        MUL_I32 case
+          program [] .stack
+            list.pop =:: b
+            list.pop =:: a
+            a asI32 b asI32 * i64 cast.u Value .Int Type .I32 TypedValue new list.push
+          program .stack=
+          break
+        PRINT case
+          program [] .stack
+            list.pop .value printValue '\n' io.print
+          program .stack=
+          break
+      end
+    break
+  end
+end
+proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
+  0:i32 =:: mut: ip
+  while ip iSize cast.u tokens .length u< do
+    tokens ip [] =:: token
+    token switch
+      Identifier case
+        program .identifiers token .Identifier map.get =:: idData?
+        idData? optional.isEmpty if
+          "Unknown identifier: \"":s io.print
+          token .Identifier io.print
+          "\"":s io.println
+          return
+        end
+        idData? .data =:: idData
+        idData switch
+          Variable case
+            program [] .stack
+              idData .Variable list.append
+            program .stack=
+            break
+          Procedure case
+            idData .Procedure program evaluateCall
+            break
+        end
+        break
+      Integer case
+        program [] .stack
+          token .Integer Value .Int Type .NONE TypedValue new list.append
+        program .stack=
+        break
+      Float case "Floats are not supported" ..panic
+      EOF case return
+    end
+  finally ip 1 + ip= end
+end
+
+proc( Program ptr.mut : program -> ) =>: initBuiltIns
+  program [] .procedures
+    $ .length ProcId cast.u =:: ADD_I32_ID
+    { Type .I32 Type .I32 } slice.wrap
+      BuiltIn .ADD_I32 ProcImplementation .builtIn
+    Procedure new list.append
+    $ .length ProcId cast.u =:: SUB_I32_ID
+    { Type .I32 Type .I32 } slice.wrap
+      BuiltIn .SUB_I32 ProcImplementation .builtIn
+    Procedure new list.append
+    $ .length ProcId cast.u =:: MUL_I32_ID
+    { Type .I32 Type .I32 } slice.wrap
+      BuiltIn .MUL_I32 ProcImplementation .builtIn
+    Procedure new list.append
+    $ .length ProcId cast.u =:: PRINT_ID
+    { Type .NONE } slice.wrap
+      BuiltIn .PRINT ProcImplementation .builtIn
+    Procedure new list.append
+  program .procedures=
+  program .identifiers "+":s ADD_I32_ID Identifier .Procedure map.put ..drop
+  program .identifiers "-":s SUB_I32_ID Identifier .Procedure map.put ..drop
+  program .identifiers "*":s MUL_I32_ID Identifier .Procedure map.put ..drop
+  program .identifiers "print":s PRINT_ID Identifier .Procedure map.put ..drop
+end
+5:iSize =:: MAX_ELTS
+proc( -> ) =>: main
+  ## Program
+    4096 mixedArena.create
+    128 Procedure list.create
+    string.hash@ string.eq@ 1024 Identifier map.create
+    128 TypedValue list.create
+    128 Token list.create
+    0:i32
+    true
+  Program new =:: mut: program
+  program@ initBuiltIns
+  256 sb.create =:: mut: lineBuffer
+  while program .running do
+    " >> ":s io.print
+    lineBuffer readLine lineBuffer=
+    0 program@ .parseOffset=
+    while
+      lineBuffer sb.asStr program@ parseLine
+    do
+      "... ":s io.print
+      lineBuffer '\n' sb.appendC readLine lineBuffer=
+    end
+    lineBuffer sb.clear lineBuffer=
+    program .tokens list.clear program@ .tokens=
+    program .stack .length MAX_ELTS u> if
+      " ...":s io.print
+    end
+    program .stack list.asSlice
+      $ .length MAX_ELTS u> if
+        $ .length MAX_ELTS - slice.tail
+      end
+    for =:: elt
+      ' ' io.print elt printTypedValue
+    end
+    '\n' io.print
+  end
+  lineBuffer sb.free ..drop
+end

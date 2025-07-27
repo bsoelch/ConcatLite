@@ -1,0 +1,7 @@
+build
+*.o
+*.s
+*.ssa
+a.out
+main
+*.zip
