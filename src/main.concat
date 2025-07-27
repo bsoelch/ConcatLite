@@ -20,16 +20,17 @@ proc( MixedArenaAllocator ptr.mut : alloc string : str -> string ) =>: copyStrin
   alloc [] str string.chars mixedArena.copySlice slice.freeze string.fromChars >$ alloc =[]
 end
 
-proc( string : mut: expr -> i32 string ) =>: parseDeclaration
+proc( string : mut: expr -> i32 IdModifier string ) =>: parseDeclaration
   0 =:: mut: i
   0 =:: mut: i0
+  IdModifier.NONE =:: mut: modifiers
   while
     expr i string.tail expr=
     ## skip leading spaces
     0 i=
     while i iSize cast.u expr .length u< and expr i string.charAt char.isSpace do i 1 + i= end
     expr .length 0:iSize == if
-      i0 string.empty return
+      i0 modifiers string.empty return
     end
     i0 i + i0=
     expr i string.tail expr=
@@ -38,13 +39,17 @@ proc( string : mut: expr -> i32 string ) =>: parseDeclaration
       i 1 + i=
     end
     i 0 == if
-      i0 string.empty return
+      i0 modifiers string.empty return
     end
     i0 i + i0=
-    ## TODO! remember modifiers
     expr i 1 - string.charAt ':' ==
+  do
+    expr i 1 - string.head =:: modif
+    modif "mut":s string.eq if
+      modifiers IdModifier.MUTABLE | modifiers=
+    end
   end
-  i0 i + 1 + expr i string.head
+  i0 i + 1 + modifiers expr i string.head
 end
 proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
   0 =:: mut: i0
@@ -75,17 +80,17 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
     end
   end
   word ":":s string.eq if
-    next i string.tail parseDeclaration =:: name +
+    next i string.tail parseDeclaration =:: name =:: idFlags +
       name .length 0:iSize == if ..drop i0 Token .EOF return end
-    name Token .Declare return
+    name idFlags InitInfo new Token .Declare return
   else word "=:":s string.eq _if
-    next i string.tail parseDeclaration =:: name +
+    next i string.tail parseDeclaration =:: name =:: idFlags +
       name .length 0:iSize == if ..drop i0 Token .EOF return end
-    name Token .TypedInitialize return
+    name idFlags InitInfo new Token .TypedInitialize return
   else word "=::":s string.eq _if
-    next i string.tail parseDeclaration =:: name +
+    next i string.tail parseDeclaration =:: name =:: idFlags +
       name .length 0:iSize == if ..drop i0 Token .EOF return end
-    name Token .Initialize return
+    name idFlags InitInfo new Token .Initialize return
   else word "if":s string.eq _if
     program [] .openBlocks
       ## IfBlockInfo
@@ -232,7 +237,7 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
         idData switch
           Variable case
             program [] .stack
-              idData .Variable list.append
+              idData .Variable .value list.append
             program .stack=
             break
           Procedure case
@@ -269,10 +274,12 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
         program [] .stack
           list.pop =:: value
         program .stack=
-        program .identifiers token .SetValue value Identifier .Variable map.put =:: prevData?
-        prevData? optional.isEmpty if
-          program .identifiers token .SetValue map.remove ..drop
+        program .identifiers token .SetValue map.at =:: prevData?
+        prevData? optional.isEmpty or prevData? .data [] .Variable ?? ! or
+            prevData? .data .Variable [] .modifiers IdModifier.MUTABLE & ? ! if
           "Error handling" ..panic
+        else
+          value prevData? .data .Variable .value=
         end
         break
       Initialize case
@@ -280,9 +287,12 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
           list.pop =:: value
         program .stack=
         ## TODO ensure value is typed ( replace int literal with i32 and float literal with f64 )
-        program .identifiers token .Initialize value Identifier .Variable map.put =:: prevData?
+        program .identifiers
+          token .Initialize .name
+          value token .Initialize .modifiers IdData new Identifier .Variable
+        map.put =:: prevData?
         prevData? optional.hasData if
-          program .identifiers token .Initialize prevData? .data map.put ..drop
+          program .identifiers token .Initialize .name prevData? .data map.put ..drop
           "Error handling" ..panic
         end
         break

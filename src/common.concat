@@ -74,12 +74,24 @@ proc( CodeBlock : block -> ) =>: export: printBlock
   end
   block .target io.println
 end
+i16 =:: export: IdModifier
+namespace: IdModifier
+  0:IdModifier =:: export: NONE
+  1:IdModifier =:: export: MUTABLE
+  ( IdModifier IdModifier -> IdModifier ) : alias: export: or i16.or
+  ( IdModifier IdModifier -> IdModifier ) : alias: export: and i16.and
+  ( IdModifier -> bool ) : alias: export: toBool i16.toBool
+end
+overload: & IdModifier.and end
+overload: | IdModifier.or end
+overload: ? IdModifier.toBool end
+struct( string : name IdModifier : modifiers ) =:: export: InitInfo
 union(
   string : Identifier
   string : SetValue
-  string : Declare
-  string : TypedInitialize
-  string : Initialize
+  InitInfo : Declare
+  InitInfo : TypedInitialize
+  InitInfo : Initialize
   i64 : Integer
   f64 : Float
   CodeBlock : Block
@@ -99,19 +111,19 @@ proc( Token : token -> ) =>: export: printToken
       token .SetValue io.print
       "\"":s io.println
       break
-    Declare case
+    Declare case ## TODO? print modifiers
       "Declare: \"":s io.print
-      token .Declare io.print
+      token .Declare .name io.print
       "\"":s io.println
       break
     Initialize case
       "Initialize: \"":s io.print
-      token .Initialize io.print
+      token .Initialize .name io.print
       "\"":s io.println
       break
     TypedInitialize case
       "TypedInitialize: \"":s io.print
-      token .TypedInitialize io.print
+      token .TypedInitialize .name io.print
       "\"":s io.println
       break
     Integer case
@@ -131,9 +143,13 @@ proc( Token : token -> ) =>: export: printToken
       break
   end
 end
+struct(
+  TypedValue : value
+  IdModifier : modifiers
+) =:: export: IdData
 union(
   ProcId : Procedure
-  TypedValue : Variable
+  IdData : Variable
 ) =:: export: Identifier
 type : export: BuiltIn
 union(
