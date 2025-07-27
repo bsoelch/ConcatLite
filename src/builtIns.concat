@@ -1,0 +1,62 @@
+import "common.concat"
+import map
+using std.literals.
+
+enum( ADD_I32 SUB_I32 MUL_I32 PRINT ) =:: export: BuiltIn
+
+proc( Program ptr.mut : program -> ) =>: export: initBuiltIns
+  program [] .procedures
+    $ .length ProcId cast.u =:: ADD_I32_ID
+    { Type .I32 Type .I32 } slice.wrap
+      BuiltIn .ADD_I32 ProcImplementation .builtIn
+    Procedure new list.append
+    $ .length ProcId cast.u =:: SUB_I32_ID
+    { Type .I32 Type .I32 } slice.wrap
+      BuiltIn .SUB_I32 ProcImplementation .builtIn
+    Procedure new list.append
+    $ .length ProcId cast.u =:: MUL_I32_ID
+    { Type .I32 Type .I32 } slice.wrap
+      BuiltIn .MUL_I32 ProcImplementation .builtIn
+    Procedure new list.append
+    $ .length ProcId cast.u =:: PRINT_ID
+    { Type .NONE } slice.wrap
+      BuiltIn .PRINT ProcImplementation .builtIn
+    Procedure new list.append
+  program .procedures=
+  program .identifiers "+":s ADD_I32_ID Identifier .Procedure map.put ..drop
+  program .identifiers "-":s SUB_I32_ID Identifier .Procedure map.put ..drop
+  program .identifiers "*":s MUL_I32_ID Identifier .Procedure map.put ..drop
+  program .identifiers "print":s PRINT_ID Identifier .Procedure map.put ..drop
+end
+proc( BuiltIn : builtIn Program ptr.mut : program -> )  =>: export: evaluateBuiltIn
+  builtIn switch
+    ## TODO? extract common code
+    ## TODO check stack size
+    ADD_I32 case
+      program [] .stack
+        list.pop =:: b
+        list.pop =:: a
+        a asI32 b asI32 + i64 cast.u Value .Int Type .I32 TypedValue new list.push
+      program .stack=
+      break
+    SUB_I32 case
+      program [] .stack
+        list.pop =:: b
+        list.pop =:: a
+        a asI32 b asI32 - i64 cast.u Value .Int Type .I32 TypedValue new list.push
+      program .stack=
+      break
+    MUL_I32 case
+      program [] .stack
+        list.pop =:: b
+        list.pop =:: a
+        a asI32 b asI32 * i64 cast.u Value .Int Type .I32 TypedValue new list.push
+      program .stack=
+      break
+    PRINT case
+      program [] .stack
+        list.pop .value printValue '\n' io.print
+      program .stack=
+      break
+  end
+end

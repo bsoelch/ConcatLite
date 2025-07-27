@@ -6,7 +6,8 @@ import chars
 import map
 using std.literals.
 
-import numbers/printNumbers
+import "common.concat"
+import "builtIns.concat"
 
 proc( stringBuilder -> stringBuilder ) =>: readLine
   while
@@ -16,87 +17,6 @@ proc( stringBuilder -> stringBuilder ) =>: readLine
     c sb.appendC
   end
 end
-
-union(
-  string : Identifier
-  i64 : Integer
-  f64 : Float
-  _ : EOF
-) =:: Token
-proc( Token : token -> ) =>: printToken
-  "* ":s io.print
-  token switch
-    Identifier case
-      "Identifier: \"":s io.print
-      token .Identifier io.print
-      "\"":s io.println
-      break
-    Integer case
-      "Int: ":s io.print token .Integer io.println
-      break
-    Float case
-      "Float: ":s io.print token .Float io.println
-      break
-    EOF case
-      "EOF":s io.println
-      break
-  end
-end
-
-enum( NONE I8 I16 I32 I64 F16 F32 F64 ) =:: Type
-i32 =:: ProcId
-union(
-  i64 : Int
-) =:: Value
-struct(
-  Value : value
-  Type : valType
-) =:: TypedValue
-proc( Type : t -> ) =>: printType
-  t switch
-    NONE case "?":s break
-    I8 case "i8":s break
-    I16 case "i16":s break
-    I32 case "i32":s break
-    I64 case "i64":s break
-    F16 case "f16":s break
-    F32 case "f32":s break
-    F64 case "f64":s break
-  end io.print
-end
-proc( Value : val -> ) =>: printValue
-  val switch
-    Int case val .Int io.print break
-  end
-end
-proc( TypedValue : val -> ) =>: printTypedValue
-  val .valType printType
-  ": ":s io.print
-  val .value printValue
-end
-proc( TypedValue : val -> i32 ) =>: asI32
-  val .valType .I32 ?? ! and val .valType .NONE ?? ! if
-    "error handling" ..panic
-  end
-  val .value .Int ?? ! if
-    "error handling" ..panic
-  end
-  val .value .Int i32 cast
-end
-
-union(
-  ProcId : Procedure
-  TypedValue : Variable
-) =:: Identifier
-enum( ADD_I32 SUB_I32 MUL_I32 PRINT ) =:: BuiltIn
-union(
-  Token slice : code
-  BuiltIn : builtIn
-) =:: ProcImplementation
-struct(
-  Type slice : arguments
-  ProcImplementation : implementation
-) =:: Procedure
 
 struct(
   MixedArenaAllocator : memory
@@ -108,7 +28,7 @@ struct(
   Token list : tokens
   i32 : parseOffset
   bool : running
-) =:: Program
+) =:: export: Program
 
 proc( MixedArenaAllocator ptr.mut : alloc string : str -> string ) =>: copyString
   alloc [] str string.chars mixedArena.copySlice slice.freeze string.fromChars >$ alloc =[]
@@ -193,39 +113,12 @@ proc( ProcId : procId Program ptr.mut : program -> ) =>: evaluateCall
   program [] .procedures procId iSize cast.u [] =:: procData
   ## TODO? check arguments
   procData .implementation switch
-    code case procData .implementation .code program evaluateBlock break
+    code case
+      procData .implementation .code program evaluateBlock
+      break
     builtIn case
-      procData .implementation .builtIn switch
-        ## TODO? extract common code
-        ## TODO check stack size
-        ADD_I32 case
-          program [] .stack
-            list.pop =:: b
-            list.pop =:: a
-            a asI32 b asI32 + i64 cast.u Value .Int Type .I32 TypedValue new list.push
-          program .stack=
-          break
-        SUB_I32 case
-          program [] .stack
-            list.pop =:: b
-            list.pop =:: a
-            a asI32 b asI32 - i64 cast.u Value .Int Type .I32 TypedValue new list.push
-          program .stack=
-          break
-        MUL_I32 case
-          program [] .stack
-            list.pop =:: b
-            list.pop =:: a
-            a asI32 b asI32 * i64 cast.u Value .Int Type .I32 TypedValue new list.push
-          program .stack=
-          break
-        PRINT case
-          program [] .stack
-            list.pop .value printValue '\n' io.print
-          program .stack=
-          break
-      end
-    break
+      procData .implementation .builtIn program evaluateBuiltIn
+      break
   end
 end
 proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
@@ -264,30 +157,6 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
   finally ip 1 + ip= end
 end
 
-proc( Program ptr.mut : program -> ) =>: initBuiltIns
-  program [] .procedures
-    $ .length ProcId cast.u =:: ADD_I32_ID
-    { Type .I32 Type .I32 } slice.wrap
-      BuiltIn .ADD_I32 ProcImplementation .builtIn
-    Procedure new list.append
-    $ .length ProcId cast.u =:: SUB_I32_ID
-    { Type .I32 Type .I32 } slice.wrap
-      BuiltIn .SUB_I32 ProcImplementation .builtIn
-    Procedure new list.append
-    $ .length ProcId cast.u =:: MUL_I32_ID
-    { Type .I32 Type .I32 } slice.wrap
-      BuiltIn .MUL_I32 ProcImplementation .builtIn
-    Procedure new list.append
-    $ .length ProcId cast.u =:: PRINT_ID
-    { Type .NONE } slice.wrap
-      BuiltIn .PRINT ProcImplementation .builtIn
-    Procedure new list.append
-  program .procedures=
-  program .identifiers "+":s ADD_I32_ID Identifier .Procedure map.put ..drop
-  program .identifiers "-":s SUB_I32_ID Identifier .Procedure map.put ..drop
-  program .identifiers "*":s MUL_I32_ID Identifier .Procedure map.put ..drop
-  program .identifiers "print":s PRINT_ID Identifier .Procedure map.put ..drop
-end
 5:iSize =:: MAX_ELTS
 proc( -> ) =>: main
   ## Program

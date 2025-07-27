@@ -1,0 +1,85 @@
+import stringIO
+import numbers/printNumbers
+using std.literals.
+
+enum( NONE I8 I16 I32 I64 F16 F32 F64 ) =:: export: Type
+i32 =:: export: ProcId
+union(
+  i64 : Int
+) =:: export: Value
+struct(
+  Value : value
+  Type : valType
+) =:: export: TypedValue
+proc( Type : t -> ) =>: export: printType
+  t switch
+    NONE case "?":s break
+    I8 case "i8":s break
+    I16 case "i16":s break
+    I32 case "i32":s break
+    I64 case "i64":s break
+    F16 case "f16":s break
+    F32 case "f32":s break
+    F64 case "f64":s break
+  end io.print
+end
+proc( Value : val -> ) =>: export: printValue
+  val switch
+    Int case val .Int io.print break
+  end
+end
+proc( TypedValue : val -> ) =>: export: printTypedValue
+  val .valType printType
+  ": ":s io.print
+  val .value printValue
+end
+proc( TypedValue : val -> i32 ) =>: export: asI32
+  val .valType .I32 ?? ! and val .valType .NONE ?? ! if
+    "error handling" ..panic
+  end
+  val .value .Int ?? ! if
+    "error handling" ..panic
+  end
+  val .value .Int i32 cast
+end
+
+
+union(
+  string : Identifier
+  i64 : Integer
+  f64 : Float
+  _ : EOF
+) =:: export: Token
+proc( Token : token -> ) =>: export: printToken
+  "* ":s io.print
+  token switch
+    Identifier case
+      "Identifier: \"":s io.print
+      token .Identifier io.print
+      "\"":s io.println
+      break
+    Integer case
+      "Int: ":s io.print token .Integer io.println
+      break
+    Float case
+      "Float: ":s io.print token .Float io.println
+      break
+    EOF case
+      "EOF":s io.println
+      break
+  end
+end
+union(
+  ProcId : Procedure
+  TypedValue : Variable
+) =:: export: Identifier
+type : export: BuiltIn
+union(
+  Token slice : code
+  BuiltIn : builtIn
+) =:: export: ProcImplementation
+struct(
+  Type slice : arguments
+  ProcImplementation : implementation
+) =:: export: Procedure
+type : export: Program
