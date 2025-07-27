@@ -20,10 +20,36 @@ proc( MixedArenaAllocator ptr.mut : alloc string : str -> string ) =>: copyStrin
   alloc [] str string.chars mixedArena.copySlice slice.freeze string.fromChars >$ alloc =[]
 end
 
+proc( string : mut: expr -> i32 string ) =>: parseDeclaration
+  0 =:: mut: i
+  0 =:: mut: i0
+  while
+    expr i string.tail expr=
+    ## skip leading spaces
+    0 i=
+    while i iSize cast.u expr .length u< and expr i string.charAt char.isSpace do i 1 + i= end
+    expr .length 0:iSize == if
+      i0 string.empty return
+    end
+    i0 i + i0=
+    expr i string.tail expr=
+    0 i=
+    while i iSize cast.u expr .length u< and expr i string.charAt char.isSpace ! do
+      i 1 + i=
+    end
+    i 0 == if
+      i0 string.empty return
+    end
+    i0 i + i0=
+    ## TODO! remember modifiers
+    expr i 1 - string.charAt ':' ==
+  end
+  i0 i + 1 + expr i string.head
+end
 proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
   0 =:: mut: i0
   ## skip leading spaces
-  while next .length 0:iSize != and next i0 string.charAt char.isSpace do i0 1 + i0= end
+  while i0 iSize cast.u next .length u< and next i0 string.charAt char.isSpace do i0 1 + i0= end
   next i0 string.tail next=
   next .length 0:iSize == if
     i0 Token .EOF return
@@ -48,7 +74,19 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
       default "error handling" ..panic
     end
   end
-  word "if":s string.eq if
+  word ":":s string.eq if
+    next i string.tail parseDeclaration =:: name +
+      name .length 0:iSize == if ..drop i0 Token .EOF return end
+    name Token .Declare return
+  else word "=:":s string.eq _if
+    next i string.tail parseDeclaration =:: name +
+      name .length 0:iSize == if ..drop i0 Token .EOF return end
+    name Token .TypedInitialize return
+  else word "=::":s string.eq _if
+    next i string.tail parseDeclaration =:: name +
+      name .length 0:iSize == if ..drop i0 Token .EOF return end
+    name Token .Initialize return
+  else word "if":s string.eq _if
     program [] .openBlocks
       ## IfBlockInfo
         program [] .tokens .length i32 cast.u ## ifIndex
@@ -132,6 +170,10 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
           BlockType .WHILE
         CodeBlock new Token .EndBlock return
     end
+  end
+  word .length 2:iSize u>= and word $ .length 1:iSize - string.charAt '=' == and
+      word .length 2:iSize u> or "<>=!":s word 0 string.charAt string.contains ! if
+    program .memory word $ .length 1:iSize - string.head copyString Token .SetValue return
   end
   ## TODO? resolve identifiers outside procedures at parse time
   program .memory word copyString Token .Identifier
@@ -220,6 +262,29 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
         break
       EndBlock case
         ip token .EndBlock .target + ip=
+        break
+      Declare TypedInitialize case
+        "Explicitly typed Variables are not supported" ..panic
+      SetValue case ## TODO! check mutability
+        program [] .stack
+          list.pop =:: value
+        program .stack=
+        program .identifiers token .SetValue value Identifier .Variable map.put =:: prevData?
+        prevData? optional.isEmpty if
+          program .identifiers token .SetValue map.remove ..drop
+          "Error handling" ..panic
+        end
+        break
+      Initialize case
+        program [] .stack
+          list.pop =:: value
+        program .stack=
+        ## TODO ensure value is typed ( replace int literal with i32 and float literal with f64 )
+        program .identifiers token .Initialize value Identifier .Variable map.put =:: prevData?
+        prevData? optional.hasData if
+          program .identifiers token .Initialize prevData? .data map.put ..drop
+          "Error handling" ..panic
+        end
         break
       EOF case return
     end

@@ -76,6 +76,10 @@ proc( CodeBlock : block -> ) =>: export: printBlock
 end
 union(
   string : Identifier
+  string : SetValue
+  string : Declare
+  string : TypedInitialize
+  string : Initialize
   i64 : Integer
   f64 : Float
   CodeBlock : Block
@@ -88,6 +92,26 @@ proc( Token : token -> ) =>: export: printToken
     Identifier case
       "Identifier: \"":s io.print
       token .Identifier io.print
+      "\"":s io.println
+      break
+    SetValue case
+      "SetValue: \"":s io.print
+      token .SetValue io.print
+      "\"":s io.println
+      break
+    Declare case
+      "Declare: \"":s io.print
+      token .Declare io.print
+      "\"":s io.println
+      break
+    Initialize case
+      "Initialize: \"":s io.print
+      token .Initialize io.print
+      "\"":s io.println
+      break
+    TypedInitialize case
+      "TypedInitialize: \"":s io.print
+      token .TypedInitialize io.print
       "\"":s io.println
       break
     Integer case
