@@ -49,7 +49,7 @@ proc( string : mut: expr -> i32 IdModifier string ) =>: parseDeclaration
       modifiers IdModifier.MUTABLE | modifiers=
     end
   end
-  i0 i + 1 + modifiers expr i string.head
+  i0 modifiers expr i string.head
 end
 proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
   0 =:: mut: i0
