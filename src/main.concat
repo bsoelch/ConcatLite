@@ -206,7 +206,7 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
       ## CompositeBlockInfo
         program [] .tokens .length i32 cast.u ## blockStart
         -1 ## toIndex
-        CompositeType .NONE
+        CompositeBlockType .NONE
       CompositeBlockInfo new BlockInfo .compositeBlock list.push
     program .openBlocks=
     -1 BlockType .TUPLE_TYPE CodeBlock new Token .Block return
@@ -215,7 +215,7 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
       ## CompositeBlockInfo
         program [] .tokens .length i32 cast.u ## blockStart
         -1 ## toIndex
-        CompositeType .PROC
+        CompositeBlockType .PROC
       CompositeBlockInfo new BlockInfo .compositeBlock list.push
     program .openBlocks=
     -1 BlockType .PROC_TYPE CodeBlock new Token .Block return
@@ -224,7 +224,7 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
       ## CompositeBlockInfo
         program [] .tokens .length i32 cast.u ## blockStart
         -1 ## toIndex
-        CompositeType .TUPLE
+        CompositeBlockType .TUPLE
       CompositeBlockInfo new BlockInfo .compositeBlock list.push
     program .openBlocks=
     -1 BlockType .TUPLE_TYPE CodeBlock new Token .Block return
@@ -233,7 +233,7 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
     procBlock? .data .compositeBlock =:: procBlock
     procBlock .compType [] .NONE ?? if
       BlockType .PROC_TYPE program [] .tokens procBlock [] .blockStart @[] .Block .blockType=
-      CompositeType .PROC procBlock .compType=
+      CompositeBlockType .PROC procBlock .compType=
     else procBlock .compType [] .PROC ?? ! or procBlock [] .toIndex -1 != _if
       "error handling" ..panic
     end
@@ -311,6 +311,33 @@ proc( Procedure ptr : procData Program ptr.mut : program -> ) =>: evaluateCall
   end
   oldOffset program resetStack
 end
+proc( Token slice : tokens bool : isProc Program ptr.mut : program -> Type ) =>: evaluateTypeBlock
+  0:iSize program offsetStack =:: oldOffset
+  program [] .stackOffset =:: baseOffset
+  ## TODO? seperate interpreter mode for correct handling of named declarations
+  tokens program evaluateBlock
+  program [] .stackOffset baseOffset u>= "stack offset did not shrink" assert
+  program [] .stackOffset baseOffset - =:: argCount
+  program [] .stack
+    $ list.asSlice baseOffset slice.tail =:: tupleElts0
+    program [] .memory
+      tupleElts0 .length i32 cast Type mixedArena.allocSlice =:: tupleElts
+      0:iSize =:: mut: i
+      tupleElts0 for .value .Type tupleElts i =[] i 1:iSize + i= end
+      isProc if
+        ## ProcedureType
+          tupleElts argCount slice.head slice.freeze CompositeType new
+          tupleElts argCount slice.tail slice.freeze CompositeType new
+        ProcedureType new mixedArena.copyValue Type .Procedure
+      else
+        tupleElts slice.freeze CompositeType new mixedArena.copyValue Type .Tuple
+      end =:: resType
+    program .memory=
+    baseOffset list.setLength
+  program .stack=
+  oldOffset program resetStack
+  resType return
+end
 proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
   0:i32 =:: mut: ip
   while ip iSize cast.u tokens .length u< do
@@ -338,10 +365,14 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
         break
       Integer case
         program [] .stack
-          token .Integer Value .Int Type .NONE TypedValue new list.append
+          token .Integer Value .Int Type .None TypedValue new list.append
         program .stack=
         break
-      Float case "Floats are not supported" ..panic
+      Float case
+        program [] .stack
+          token .Float Value .Float Type .None TypedValue new list.append
+        program .stack=
+        break
       Block case
         token .Block .blockType switch
           IF DO case
@@ -356,7 +387,28 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
             end
             break
           ELSE case ip token .Block .target + ip= break
-          TUPLE_TYPE PROC_TYPE TO_TYPE PROCEDURE case ip token .Block .target + ip= break ## skip type-blocks (for now)
+          TUPLE_TYPE PROC_TYPE case
+            ## TypedValue
+              ## evaluateTypeBlock
+                tokens
+                  ip 1 + iSize cast.u
+                  token .Block .target iSize cast.u
+                slice.getSlice
+                token .Block .blockType .PROC_TYPE ??
+              program evaluateTypeBlock Value .Type
+              Type .Type
+            TypedValue new =:: newType
+            ## ! evaluateTypeBlock modifies stack -> cannot inline type-declaration
+            program [] .stack
+              newType list.append
+            program .stack=
+            ip token .Block .target + ip=
+            break
+          TO_TYPE case
+            ## ensure arguments do not interfer with return values
+            0:iSize program offsetStack ..drop
+            break
+          PROCEDURE case ip token .Block .target + ip= break ## skip type-blocks (for now)
           WHILE case break ## nothing to do
         end
         break

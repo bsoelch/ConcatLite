@@ -6,12 +6,12 @@ enum( ADD_I32 SUB_I32 MUL_I32 LT_I32 EQ_I32 DUP SWAP OVER DROP PRINT ) =:: expor
 
 proc( string Identifier hashMap ptr.mut : idNames string : name Type : t -> ) =>: newBuiltInType
   idNames name
-    t Value .Type Type .TYPE TypedValue new
+    t Value .Type Type .Type TypedValue new
     IdModifier.BUILTIN
   IdData new Identifier .Variable map.put ..drop
 end
 proc( Program ptr.mut : program -> ) =>: export: initBuiltIns
-  program .identifiers "bool":s Type .BOOL newBuiltInType
+  program .identifiers "bool":s Type .Bool newBuiltInType
   program .identifiers "i8":s  Type .I8  newBuiltInType
   program .identifiers "i16":s Type .I16 newBuiltInType
   program .identifiers "i32":s Type .I32 newBuiltInType
@@ -19,7 +19,7 @@ proc( Program ptr.mut : program -> ) =>: export: initBuiltIns
   program .identifiers "f16":s Type .F16 newBuiltInType
   program .identifiers "f32":s Type .F32 newBuiltInType
   program .identifiers "f64":s Type .F64 newBuiltInType
-  program .identifiers "type":s Type .TYPE newBuiltInType
+  program .identifiers "type":s Type .Type newBuiltInType
   program [] .memory
     { Type .I32 Type .I32 } slice.wrap
       BuiltIn .ADD_I32 ProcImplementation .builtIn
@@ -36,19 +36,19 @@ proc( Program ptr.mut : program -> ) =>: export: initBuiltIns
     { Type .I32 Type .I32 } slice.wrap
       BuiltIn .EQ_I32 ProcImplementation .builtIn
     Procedure new mixedArena.copyValue =:: EQ_I32_ID
-    { Type .NONE } slice.wrap
+    { Type .None } slice.wrap
       BuiltIn .PRINT ProcImplementation .builtIn
     Procedure new mixedArena.copyValue =:: PRINT_ID
-    { Type .NONE } slice.wrap
+    { Type .None } slice.wrap
       BuiltIn .DUP ProcImplementation .builtIn
     Procedure new mixedArena.copyValue =:: DUP_ID
-    { Type .NONE Type .NONE } slice.wrap
+    { Type .None Type .None } slice.wrap
       BuiltIn .SWAP ProcImplementation .builtIn
     Procedure new mixedArena.copyValue =:: SWAP_ID
-    { Type .NONE Type .NONE } slice.wrap
+    { Type .None Type .None } slice.wrap
       BuiltIn .OVER ProcImplementation .builtIn
     Procedure new mixedArena.copyValue =:: OVER_ID
-    { Type .NONE } slice.wrap
+    { Type .None } slice.wrap
       BuiltIn .DROP ProcImplementation .builtIn
     Procedure new mixedArena.copyValue =:: DROP_ID
   program .memory=
@@ -103,7 +103,7 @@ proc( BuiltIn : builtIn Program ptr.mut : program -> )  =>: export: evaluateBuil
       program [] .stack
         list.pop =:: b
         list.pop =:: a
-        a asI32 b asI32 < Value .Bool Type .BOOL TypedValue new list.push
+        a asI32 b asI32 < Value .Bool Type .Bool TypedValue new list.push
       program .stack=
       break
     EQ_I32 case
@@ -113,7 +113,7 @@ proc( BuiltIn : builtIn Program ptr.mut : program -> )  =>: export: evaluateBuil
       program [] .stack
         list.pop =:: b
         list.pop =:: a
-        a asI32 b asI32 == Value .Bool Type .BOOL TypedValue new list.push
+        a asI32 b asI32 == Value .Bool Type .Bool TypedValue new list.push
       program .stack=
       break
     DUP case

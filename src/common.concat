@@ -4,10 +4,34 @@ import map
 import numbers/printNumbers
 using std.literals.
 
-enum( NONE BOOL I8 I16 I32 I64 F16 F32 F64 TYPE ) =:: export: Type
+type : export: Type
+struct(
+  Type slice : elements
+  ## TODO? remember element names (? list of pointers to "Label" structs )
+) =:: export: CompositeType
+struct(
+  CompositeType : inTypes
+  CompositeType : outTypes
+) =:: export: ProcedureType
+union(
+  _ : None
+  _ : Bool
+  _ : I8
+  _ : I16
+  _ : I32
+  _ : I64
+  _ : F16
+  _ : F32
+  _ : F64
+  _ : Type
+  CompositeType ptr : Tuple
+  CompositeType ptr : Union
+  ProcedureType ptr : Procedure
+) =:: export: Type
 union(
   bool : Bool
   i64 : Int
+  f64 : Float
   Type : Type
 ) =:: export: Value
 struct(
@@ -16,21 +40,36 @@ struct(
 ) =:: export: TypedValue
 proc( Type : t -> ) =>: export: printType
   t switch
-    NONE case "?":s break
-    BOOL case "bool":s break
-    I8 case "i8":s break
-    I16 case "i16":s break
-    I32 case "i32":s break
-    I64 case "i64":s break
-    F16 case "f16":s break
-    F32 case "f32":s break
-    F64 case "f64":s break
-    TYPE case "type":s break
-  end io.print
+    None case "?":s io.print break
+    Bool case "bool":s io.print break
+    I8 case "i8":s io.print break
+    I16 case "i16":s io.print break
+    I32 case "i32":s io.print break
+    I64 case "i64":s io.print break
+    F16 case "f16":s io.print break
+    F32 case "f32":s io.print break
+    F64 case "f64":s io.print break
+    Type case "type":s io.print break
+    Tuple case
+      "( ":s io.print
+        t .Tuple [] .elements for printType ' ' io.print end
+      ')' io.print break
+    Union case
+      "union( ":s io.print
+        t .Union [] .elements for printType ' ' io.print end
+      ')' io.print break
+    Procedure case
+      "( ":s io.print
+        t .Procedure .inTypes [] .elements for printType ' ' io.print end
+        "-> ":s io.print
+        t .Procedure .outTypes [] .elements for printType ' ' io.print end
+      ')' io.print break
+  end
 end
 proc( Value : val -> ) =>: export: printValue
   val switch
     Int case val .Int io.print break
+    Float case val .Float io.print break
     Bool case val .Bool if "true":s else "false":s end io.print break
     Type case val .Type printType break
   end
@@ -41,7 +80,7 @@ proc( TypedValue : val -> ) =>: export: printTypedValue
   val .value printValue
 end
 proc( TypedValue : val -> bool ) =>: export: asBool
-  val .valType .BOOL ?? ! and val .valType .NONE ?? ! if
+  val .valType .Bool ?? ! and val .valType .None ?? ! if
     "error handling" ..panic
   end
   val .value .Bool ?? ! if
@@ -50,7 +89,7 @@ proc( TypedValue : val -> bool ) =>: export: asBool
   val .value .Bool
 end
 proc( TypedValue : val -> i32 ) =>: export: asI32
-  val .valType .I32 ?? ! and val .valType .NONE ?? ! if
+  val .valType .I32 ?? ! and val .valType .None ?? ! if
     "error handling" ..panic
   end
   val .value .Int ?? ! if
@@ -175,11 +214,11 @@ struct(
   i32 : doIndex
   ## TODO support break/continue
 ) =:: export: WhileBlockInfo
-enum( NONE PROC TUPLE ) =:: export: CompositeType
+enum( NONE PROC TUPLE ) =:: export: CompositeBlockType
 struct(
   i32 : blockStart
   i32 : toIndex
-  CompositeType : compType
+  CompositeBlockType : compType
 ) =:: export: CompositeBlockInfo
 struct(
   string : procName
@@ -192,6 +231,12 @@ union(
   CompositeBlockInfo : compositeBlock
   ProcedureBlockInfo : procedureBlock
 ) =:: export: BlockInfo
+## "interpreter mode" ( set-reset functionality )
+##  code
+##  type-block
+##  initializer
+##  enum
+##  switch-label?
 struct(
   MixedArenaAllocator : memory
   string Identifier hashMap : identifiers
