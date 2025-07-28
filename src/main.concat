@@ -154,10 +154,12 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
     program .openBlocks=
     -1 BlockType .PROCEDURE CodeBlock new Token .Block return
   else word "end":s string.eq _if
+    program [] .openBlocks .length 0:iSize == if
+      "error handling" ..panic
+    end
     program [] .openBlocks
       list.pop =:: closed
     program .openBlocks=
-    ## TODO handle closed block (insert correct jump-distances into operations
     closed switch
       ifBlock case
         closed .ifBlock .elseIndex =:: elseIndex
@@ -238,6 +240,9 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
     program [] .tokens .length i32 cast.u procBlock .toIndex=
     0 BlockType .TO_TYPE CodeBlock new Token .Block return
   else word ")":s string.eq _if
+    program [] .openBlocks .length 0:iSize == if
+      "error handling" ..panic
+    end
     program [] .openBlocks
       list.pop =:: closed
     program .openBlocks=
@@ -263,7 +268,6 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
       word .length 2:iSize u> or "<>=!":s word 0 string.charAt string.contains ! if
     program .memory word $ .length 1:iSize - string.head copyString Token .SetValue return
   end
-  ## TODO? resolve identifiers outside procedures at parse time
   program .memory word copyString Token .Identifier
 end
 ## parse a single line returns true if line needs to be continued
@@ -276,7 +280,7 @@ proc( string : line Program ptr.mut : program -> bool ) =>: parseLine
     line program [] .parseOffset string.tail program nextToken =:: token =:: consumed
     program [] .parseOffset consumed + program .parseOffset=
     token .EOF ?? !
-  do ## TODO make sure to copy strings
+  do
     program [] .tokens
       token list.append
     program .tokens=
@@ -291,17 +295,21 @@ proc( string : line Program ptr.mut : program -> bool ) =>: parseLine
   false return
 end
 
-proc( ProcId : procId Program ptr.mut : program -> ) =>: evaluateCall
-  program [] .procedures procId iSize cast.u [] =:: procData
-  ## TODO? check arguments
-  procData .implementation switch
+proc( Procedure ptr : procData Program ptr.mut : program -> ) =>: evaluateCall
+  procData [] .arguments .length program checkStack if
+    "stack underflow" ..panic
+  end
+  ## TODO? check argument types
+  procData [] .arguments .length program offsetStack =:: oldOffset
+  procData [] .implementation switch
     code case
-      procData .implementation .code program evaluateBlock
+      procData .implementation [] .code program evaluateBlock
       break
     builtIn case
-      procData .implementation .builtIn program evaluateBuiltIn
+      procData .implementation [] .builtIn program evaluateBuiltIn
       break
   end
+  oldOffset program resetStack
 end
 proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
   0:i32 =:: mut: ip
@@ -337,6 +345,9 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
       Block case
         token .Block .blockType switch
           IF DO case
+            1:iSize program checkStack if
+              "stack underflow" ..panic
+            end
             program [] .stack
               list.pop =:: cond
             program .stack=
@@ -354,7 +365,10 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
         break
       Declare TypedInitialize case
         "Explicitly typed Variables are not supported" ..panic
-      SetValue case ## TODO! check mutability
+      SetValue case
+        1:iSize program checkStack if
+          "stack underflow" ..panic
+        end
         program [] .stack
           list.pop =:: value
         program .stack=
@@ -367,6 +381,9 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
         end
         break
       Initialize case
+        1:iSize program checkStack if
+          "stack underflow" ..panic
+        end
         program [] .stack
           list.pop =:: value
         program .stack=
@@ -389,9 +406,9 @@ end
 proc( -> ) =>: main
   ## Program
     4096 mixedArena.create
-    128 Procedure list.create
     string.hash@ string.eq@ 1024 Identifier map.create
     128 TypedValue list.create
+    0:iSize
     128 BlockInfo list.create
     128 Token list.create
     0:i32

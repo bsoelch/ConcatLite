@@ -5,7 +5,6 @@ import numbers/printNumbers
 using std.literals.
 
 enum( NONE BOOL I8 I16 I32 I64 F16 F32 F64 TYPE ) =:: export: Type
-i32 =:: export: ProcId
 union(
   bool : Bool
   i64 : Int
@@ -148,14 +147,6 @@ proc( Token : token -> ) =>: export: printToken
       break
   end
 end
-struct(
-  TypedValue : value
-  IdModifier : modifiers
-) =:: export: IdData
-union(
-  ProcId : Procedure
-  IdData : Variable
-) =:: export: Identifier
 type : export: BuiltIn
 union(
   Token slice : code
@@ -165,6 +156,15 @@ struct(
   Type slice : arguments
   ProcImplementation : implementation
 ) =:: export: Procedure
+struct(
+  TypedValue : value
+  IdModifier : modifiers
+) =:: export: IdData
+union(
+  Procedure ptr : Procedure
+  IdData : Variable
+) =:: export: Identifier
+
 struct(
   i32 : ifIndex
   i32 : elseIndex
@@ -194,12 +194,25 @@ union(
 ) =:: export: BlockInfo
 struct(
   MixedArenaAllocator : memory
-  Procedure list : procedures ## TODO? store procedures in memory
   string Identifier hashMap : identifiers
   TypedValue list : stack
+  iSize : stackOffset
   ## parser state
   BlockInfo list : openBlocks
   Token list : tokens
   i32 : parseOffset
   bool : running
 ) =:: export: Program
+proc( iSize : argCount Program ptr : program -> bool ) =>: export: checkStack
+  argCount program .stack [] .length program [] .stackOffset - u>
+end
+proc( iSize : argCount Program ptr.mut : program -> iSize ) =>: export: offsetStack
+  program [] .stackOffset =:: oldOffset
+    argCount program .stack [] .length u<= "enough stack capacity" assert
+    program .stack [] .length argCount - program .stackOffset=
+  oldOffset
+end
+proc( iSize : oldOffset Program ptr.mut : program -> ) =>: export: resetStack
+  oldOffset program .stack [] .length u<= "enough stack capacity" assert
+  oldOffset program .stackOffset=
+end

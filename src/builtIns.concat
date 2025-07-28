@@ -20,48 +20,38 @@ proc( Program ptr.mut : program -> ) =>: export: initBuiltIns
   program .identifiers "f32":s Type .F32 newBuiltInType
   program .identifiers "f64":s Type .F64 newBuiltInType
   program .identifiers "type":s Type .TYPE newBuiltInType
-  program [] .procedures
-    $ .length ProcId cast.u =:: ADD_I32_ID
+  program [] .memory
     { Type .I32 Type .I32 } slice.wrap
       BuiltIn .ADD_I32 ProcImplementation .builtIn
-    Procedure new list.append
-    $ .length ProcId cast.u =:: SUB_I32_ID
+    Procedure new mixedArena.copyValue =:: ADD_I32_ID
     { Type .I32 Type .I32 } slice.wrap
       BuiltIn .SUB_I32 ProcImplementation .builtIn
-    Procedure new list.append
-    $ .length ProcId cast.u =:: MUL_I32_ID
+    Procedure new mixedArena.copyValue =:: SUB_I32_ID
     { Type .I32 Type .I32 } slice.wrap
       BuiltIn .MUL_I32 ProcImplementation .builtIn
-    Procedure new list.append
-    $ .length ProcId cast.u =:: LT_I32_ID
+    Procedure new mixedArena.copyValue =:: MUL_I32_ID
     { Type .I32 Type .I32 } slice.wrap
       BuiltIn .LT_I32 ProcImplementation .builtIn
-    Procedure new list.append
-    $ .length ProcId cast.u =:: EQ_I32_ID
+    Procedure new mixedArena.copyValue =:: LT_I32_ID
     { Type .I32 Type .I32 } slice.wrap
       BuiltIn .EQ_I32 ProcImplementation .builtIn
-    Procedure new list.append
-    $ .length ProcId cast.u =:: PRINT_ID
+    Procedure new mixedArena.copyValue =:: EQ_I32_ID
     { Type .NONE } slice.wrap
       BuiltIn .PRINT ProcImplementation .builtIn
-    Procedure new list.append
-    $ .length ProcId cast.u =:: DUP_ID
+    Procedure new mixedArena.copyValue =:: PRINT_ID
     { Type .NONE } slice.wrap
       BuiltIn .DUP ProcImplementation .builtIn
-    Procedure new list.append
-    $ .length ProcId cast.u =:: SWAP_ID
+    Procedure new mixedArena.copyValue =:: DUP_ID
     { Type .NONE Type .NONE } slice.wrap
       BuiltIn .SWAP ProcImplementation .builtIn
-    Procedure new list.append
-    $ .length ProcId cast.u =:: OVER_ID
+    Procedure new mixedArena.copyValue =:: SWAP_ID
     { Type .NONE Type .NONE } slice.wrap
       BuiltIn .OVER ProcImplementation .builtIn
-    Procedure new list.append
-    $ .length ProcId cast.u =:: DROP_ID
+    Procedure new mixedArena.copyValue =:: OVER_ID
     { Type .NONE } slice.wrap
       BuiltIn .DROP ProcImplementation .builtIn
-    Procedure new list.append
-  program .procedures=
+    Procedure new mixedArena.copyValue =:: DROP_ID
+  program .memory=
   program .identifiers "+":s ADD_I32_ID Identifier .Procedure map.put ..drop
   program .identifiers "-":s SUB_I32_ID Identifier .Procedure map.put ..drop
   program .identifiers "*":s MUL_I32_ID Identifier .Procedure map.put ..drop
@@ -76,8 +66,10 @@ end
 proc( BuiltIn : builtIn Program ptr.mut : program -> )  =>: export: evaluateBuiltIn
   builtIn switch
     ## TODO? extract common code
-    ## TODO check stack size
     ADD_I32 case
+      2:iSize program checkStack if
+        "stack underflow" ..panic
+      end
       program [] .stack
         list.pop =:: b
         list.pop =:: a
@@ -85,6 +77,9 @@ proc( BuiltIn : builtIn Program ptr.mut : program -> )  =>: export: evaluateBuil
       program .stack=
       break
     SUB_I32 case
+      2:iSize program checkStack if
+        "stack underflow" ..panic
+      end
       program [] .stack
         list.pop =:: b
         list.pop =:: a
@@ -92,6 +87,9 @@ proc( BuiltIn : builtIn Program ptr.mut : program -> )  =>: export: evaluateBuil
       program .stack=
       break
     MUL_I32 case
+      2:iSize program checkStack if
+        "stack underflow" ..panic
+      end
       program [] .stack
         list.pop =:: b
         list.pop =:: a
@@ -99,6 +97,9 @@ proc( BuiltIn : builtIn Program ptr.mut : program -> )  =>: export: evaluateBuil
       program .stack=
       break
     LT_I32 case
+      2:iSize program checkStack if
+        "stack underflow" ..panic
+      end
       program [] .stack
         list.pop =:: b
         list.pop =:: a
@@ -106,6 +107,9 @@ proc( BuiltIn : builtIn Program ptr.mut : program -> )  =>: export: evaluateBuil
       program .stack=
       break
     EQ_I32 case
+      2:iSize program checkStack if
+        "stack underflow" ..panic
+      end
       program [] .stack
         list.pop =:: b
         list.pop =:: a
@@ -113,11 +117,17 @@ proc( BuiltIn : builtIn Program ptr.mut : program -> )  =>: export: evaluateBuil
       program .stack=
       break
     DUP case
+      1:iSize program checkStack if
+        "stack underflow" ..panic
+      end
       program [] .stack
         $ list.peek .data list.appendP
       program .stack=
       break
     SWAP case
+      2:iSize program checkStack if
+        "stack underflow" ..panic
+      end
       program [] .stack
         list.pop =:: a
         list.pop =:: b
@@ -126,16 +136,25 @@ proc( BuiltIn : builtIn Program ptr.mut : program -> )  =>: export: evaluateBuil
       program .stack=
       break
     OVER case
+      2:iSize program checkStack if
+        "stack underflow" ..panic
+      end
       program [] .stack
         $ $ .length 2:iSize - [] list.push
       program .stack=
       break
     DROP case
+      1:iSize program checkStack if
+        "stack underflow" ..panic
+      end
       program [] .stack
         list.pop ..drop
       program .stack=
       break
     PRINT case
+      1:iSize program checkStack if
+        "stack underflow" ..panic
+      end
       program [] .stack
         list.pop .value printValue '\n' io.print
       program .stack=
