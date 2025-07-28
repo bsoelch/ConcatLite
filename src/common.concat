@@ -60,7 +60,7 @@ proc( TypedValue : val -> i32 ) =>: export: asI32
   val .value .Int i32 cast
 end
 
-enum( IF ELSE WHILE DO  TUPLE PROC TO ) =:: export: BlockType
+enum( IF ELSE WHILE DO  PROCEDURE TUPLE_TYPE PROC_TYPE TO_TYPE ) =:: export: BlockType
 struct(
   i32 : target
   BlockType : blockType
@@ -71,9 +71,10 @@ proc( CodeBlock : block -> ) =>: export: printBlock
     ELSE  case "else -> ":s  io.print break
     WHILE case "while -> ":s io.print break
     DO    case "do -> ":s    io.print break
-    PROC  case "proc: ":s    io.print break
-    TUPLE case "tuple: ":s   io.print break
-    TO    case "to: ":s      io.print break
+    PROCEDURE  case "procedure: ":s    io.print break
+    PROC_TYPE  case "proc-type: ":s    io.print break
+    TUPLE_TYPE case "tuple-type: ":s   io.print break
+    TO_TYPE    case "to-type: ":s      io.print break
   end
   block .target io.println
 end
@@ -180,10 +181,16 @@ struct(
   i32 : toIndex
   CompositeType : compType
 ) =:: export: CompositeBlockInfo
+struct(
+  string : procName
+  i32 : blockStart
+  IdModifier : idModifiers
+) =:: export: ProcedureBlockInfo
 union(
   IfBlockInfo : ifBlock
   WhileBlockInfo : whileBlock
   CompositeBlockInfo : compositeBlock
+  ProcedureBlockInfo : procedureBlock
 ) =:: export: BlockInfo
 struct(
   MixedArenaAllocator : memory

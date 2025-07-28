@@ -137,6 +137,22 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
     "unimplemented" ..panic
   else word "continue":s string.eq _if
     "unimplemented" ..panic
+  else word "=>":s string.eq or word "=>:":s string.eq _if
+    word .length 3:iSize == if
+      next i string.tail parseDeclaration =:: name =:: idFlags +
+        name .length 0:iSize == if ..drop i0 Token .EOF return end
+      name idFlags
+    else
+      string.empty IdModifier.NONE
+    end =:: idFlags =:: name
+    program [] .openBlocks
+      ## ProcedureBlockInfo
+        name ## procName
+        program [] .tokens .length i32 cast.u ## blockStart
+        idFlags ## idModifiers
+      ProcedureBlockInfo new BlockInfo .procedureBlock list.push
+    program .openBlocks=
+    -1 BlockType .PROCEDURE CodeBlock new Token .Block return
   else word "end":s string.eq _if
     program [] .openBlocks
       list.pop =:: closed
@@ -174,6 +190,13 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
         whileIndex program [] .tokens .length i32 cast.u -
           BlockType .WHILE
         CodeBlock new Token .EndBlock return
+      procedureBlock case
+        closed .procedureBlock .blockStart =:: blockStart
+        program [] .tokens .length i32 cast.u blockStart -
+          program [] .tokens blockStart @[]
+        .Block .target=
+        ## TODO declare procedure (either declare variable with given name, or push proc-pointer if unnamed)
+        0 BlockType .PROCEDURE CodeBlock new Token .EndBlock return
       compositeBlock case "error handling" ..panic
     end
   else word "(":s string.eq _if
@@ -184,7 +207,7 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
         CompositeType .NONE
       CompositeBlockInfo new BlockInfo .compositeBlock list.push
     program .openBlocks=
-    -1 BlockType .TUPLE CodeBlock new Token .Block return
+    -1 BlockType .TUPLE_TYPE CodeBlock new Token .Block return
   else word "proc(":s string.eq _if
     program [] .openBlocks
       ## CompositeBlockInfo
@@ -193,7 +216,7 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
         CompositeType .PROC
       CompositeBlockInfo new BlockInfo .compositeBlock list.push
     program .openBlocks=
-    -1 BlockType .PROC CodeBlock new Token .Block return
+    -1 BlockType .PROC_TYPE CodeBlock new Token .Block return
   else word "struct(":s string.eq _if
     program [] .openBlocks
       ## CompositeBlockInfo
@@ -202,18 +225,18 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
         CompositeType .TUPLE
       CompositeBlockInfo new BlockInfo .compositeBlock list.push
     program .openBlocks=
-    -1 BlockType .TUPLE CodeBlock new Token .Block return
+    -1 BlockType .TUPLE_TYPE CodeBlock new Token .Block return
   else word "->":s string.eq _if
     program [] .openBlocks list.peek =:: procBlock?
     procBlock? .data .compositeBlock =:: procBlock
     procBlock .compType [] .NONE ?? if
-      BlockType .PROC program [] .tokens procBlock [] .blockStart @[] .Block .blockType=
+      BlockType .PROC_TYPE program [] .tokens procBlock [] .blockStart @[] .Block .blockType=
       CompositeType .PROC procBlock .compType=
     else procBlock .compType [] .PROC ?? ! or procBlock [] .toIndex -1 != _if
       "error handling" ..panic
     end
     program [] .tokens .length i32 cast.u procBlock .toIndex=
-    0 BlockType .TO CodeBlock new Token .Block return
+    0 BlockType .TO_TYPE CodeBlock new Token .Block return
   else word ")":s string.eq _if
     program [] .openBlocks
       list.pop =:: closed
@@ -226,13 +249,13 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
       program [] .tokens startIndex @[]
     .Block .target=
     closed .compositeBlock .compType switch
-      NONE TUPLE case BlockType .TUPLE break
+      NONE TUPLE case BlockType .TUPLE_TYPE break
       PROC case
         closed .compositeBlock .toIndex =:: toIndex
         program [] .tokens .length i32 cast.u toIndex -
           program [] .tokens toIndex @[]
         .Block .target=
-        BlockType .PROC break
+        BlockType .PROC_TYPE break
     end =:: blockType
     0 blockType CodeBlock new Token .EndBlock return
   end
@@ -322,7 +345,7 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
             end
             break
           ELSE case ip token .Block .target + ip= break
-          TUPLE PROC TO case ip token .Block .target + ip= break ## skip type-blocks (for now)
+          TUPLE_TYPE PROC_TYPE TO_TYPE PROCEDURE case ip token .Block .target + ip= break ## skip type-blocks (for now)
           WHILE case break ## nothing to do
         end
         break
