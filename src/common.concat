@@ -28,11 +28,13 @@ union(
   CompositeType ptr : Union
   ProcedureType ptr : Procedure
 ) =:: export: Type
+type : export: Procedure
 union(
   bool : Bool
   i64 : Int
   f64 : Float
   Type : Type
+  Procedure ptr : Procedure
 ) =:: export: Value
 struct(
   Value : value
@@ -72,6 +74,7 @@ proc( Value : val -> ) =>: export: printValue
     Float case val .Float io.print break
     Bool case val .Bool if "true":s else "false":s end io.print break
     Type case val .Type printType break
+    Procedure case "procedure@":s io.print val .Procedure iPtr cast! i64 cast.u io.print break
   end
 end
 proc( TypedValue : val -> ) =>: export: printTypedValue
@@ -128,15 +131,14 @@ end
 overload: & IdModifier.and end
 overload: | IdModifier.or end
 overload: ? IdModifier.toBool end
-struct( string : name IdModifier : modifiers ) =:: export: InitInfo
+
+enum( DECLARE TYPED AUTO TYPED_PROC ) =:: export: InitType
+struct( string : name IdModifier : modifiers InitType : initType ) =:: export: InitInfo
 union(
   string : Identifier
   string : SetValue
-  InitInfo : Declare
-  InitInfo : TypedInitialize
   InitInfo : Initialize
-  i64 : Integer
-  f64 : Float
+  TypedValue : Constant
   CodeBlock : Block
   CodeBlock : EndBlock
   _ : EOF
@@ -154,26 +156,18 @@ proc( Token : token -> ) =>: export: printToken
       token .SetValue io.print
       "\"":s io.println
       break
-    Declare case ## TODO? print modifiers
-      "Declare: \"":s io.print
-      token .Declare .name io.print
-      "\"":s io.println
-      break
     Initialize case
-      "Initialize: \"":s io.print
+      token .Initialize .initType switch
+        DECLARE case "Declare: \"":s io.print break
+        AUTO case "Initialize: \"":s io.print break
+        TYPED case "Typed Initialize: \"":s io.print break
+        TYPED_PROC case "Proc Initialize: \"":s io.print break
+      end
       token .Initialize .name io.print
       "\"":s io.println
       break
-    TypedInitialize case
-      "TypedInitialize: \"":s io.print
-      token .TypedInitialize .name io.print
-      "\"":s io.println
-      break
-    Integer case
-      "Int: ":s io.print token .Integer io.println
-      break
-    Float case
-      "Float: ":s io.print token .Float io.println
+    Constant case
+      "Constant: ":s io.print token .Constant printTypedValue '\n' io.printC
       break
     Block case
       "Block: ":s io.print token .Block printBlock
@@ -198,10 +192,6 @@ struct(
 struct(
   TypedValue : value
   IdModifier : modifiers
-) =:: export: IdData
-union(
-  Procedure ptr : Procedure
-  IdData : Variable
 ) =:: export: Identifier
 
 struct(

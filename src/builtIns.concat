@@ -8,7 +8,13 @@ proc( string Identifier hashMap ptr.mut : idNames string : name Type : t -> ) =>
   idNames name
     t Value .Type Type .Type TypedValue new
     IdModifier.BUILTIN
-  IdData new Identifier .Variable map.put ..drop
+  Identifier new map.put ..drop
+end
+proc( string Identifier hashMap ptr.mut : idNames string : name Procedure ptr : proc -> ) =>: newBuiltInProc
+  idNames name ## TODO? use actual types for procedures
+    proc Value .Procedure Type .None TypedValue new
+    IdModifier.BUILTIN
+  Identifier new map.put ..drop
 end
 proc( Program ptr.mut : program -> ) =>: export: initBuiltIns
   program .identifiers "bool":s Type .Bool newBuiltInType
@@ -52,16 +58,16 @@ proc( Program ptr.mut : program -> ) =>: export: initBuiltIns
       BuiltIn .DROP ProcImplementation .builtIn
     Procedure new mixedArena.copyValue =:: DROP_ID
   program .memory=
-  program .identifiers "+":s ADD_I32_ID Identifier .Procedure map.put ..drop
-  program .identifiers "-":s SUB_I32_ID Identifier .Procedure map.put ..drop
-  program .identifiers "*":s MUL_I32_ID Identifier .Procedure map.put ..drop
-  program .identifiers "<":s LT_I32_ID Identifier .Procedure map.put ..drop
-  program .identifiers "==":s EQ_I32_ID Identifier .Procedure map.put ..drop
-  program .identifiers "print":s PRINT_ID Identifier .Procedure map.put ..drop
-  program .identifiers "$":s DUP_ID Identifier .Procedure map.put ..drop
-  program .identifiers ">$":s SWAP_ID Identifier .Procedure map.put ..drop
-  program .identifiers "$1":s OVER_ID Identifier .Procedure map.put ..drop
-  program .identifiers "..drop":s DROP_ID Identifier .Procedure map.put ..drop
+  program .identifiers "+":s ADD_I32_ID newBuiltInProc
+  program .identifiers "-":s SUB_I32_ID newBuiltInProc
+  program .identifiers "*":s MUL_I32_ID newBuiltInProc
+  program .identifiers "<":s LT_I32_ID newBuiltInProc
+  program .identifiers "==":s EQ_I32_ID newBuiltInProc
+  program .identifiers "print":s PRINT_ID newBuiltInProc
+  program .identifiers "$":s DUP_ID newBuiltInProc
+  program .identifiers ">$":s SWAP_ID newBuiltInProc
+  program .identifiers "$1":s OVER_ID newBuiltInProc
+  program .identifiers "..drop":s DROP_ID newBuiltInProc
 end
 proc( BuiltIn : builtIn Program ptr.mut : program -> )  =>: export: evaluateBuiltIn
   builtIn switch

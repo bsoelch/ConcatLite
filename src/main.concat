@@ -67,30 +67,31 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
   next i string.head =:: word
   word .length 0:iSize != and word 0 string.charAt char.isDigit if
     word 0 number.tryParseInt switch
-      NONE case Token .Integer return
+      NONE case Value .Int Type .None TypedValue new Token .Constant return
       UNSIGNED case ## TODO warning
-        Token .Integer return
+        Value .Int Type .None TypedValue new Token .Constant return
       SIGN case "error handling" ..panic
       OVERFLOW case "error handling" ..panic
       default ..drop break
     end
     word 0 number.tryParseFloat switch
-      NONE INT case Token .Float return
+      NONE INT case
+        Value .Float Type .None TypedValue new Token .Constant return
       default "error handling" ..panic
     end
   end
   word ":":s string.eq if
     next i string.tail parseDeclaration =:: name =:: idFlags +
       name .length 0:iSize == if ..drop i0 Token .EOF return end
-    name idFlags InitInfo new Token .Declare return
+    name idFlags InitType .DECLARE InitInfo new Token .Initialize return
   else word "=:":s string.eq _if
     next i string.tail parseDeclaration =:: name =:: idFlags +
       name .length 0:iSize == if ..drop i0 Token .EOF return end
-    name idFlags InitInfo new Token .TypedInitialize return
+    name idFlags InitType .TYPED InitInfo new Token .Initialize return
   else word "=::":s string.eq _if
     next i string.tail parseDeclaration =:: name =:: idFlags +
       name .length 0:iSize == if ..drop i0 Token .EOF return end
-    name idFlags InitInfo new Token .Initialize return
+    name idFlags InitType .AUTO InitInfo new Token .Initialize return
   else word "if":s string.eq _if
     program [] .openBlocks
       ## IfBlockInfo
@@ -197,8 +198,14 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
         program [] .tokens .length i32 cast.u blockStart -
           program [] .tokens blockStart @[]
         .Block .target=
-        ## TODO declare procedure (either declare variable with given name, or push proc-pointer if unnamed)
-        0 BlockType .PROCEDURE CodeBlock new Token .EndBlock return
+        0 BlockType .PROCEDURE CodeBlock new Token .EndBlock =:: blockEnd
+        closed .procedureBlock .procName .length 0:iSize == if
+          blockEnd return
+        end
+        program [] .tokens blockEnd list.append program .tokens=
+        closed .procedureBlock .procName
+          closed .procedureBlock .idModifiers
+        InitType .TYPED_PROC InitInfo new Token .Initialize return
       compositeBlock case "error handling" ..panic
     end
   else word "(":s string.eq _if
@@ -352,25 +359,18 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
           return
         end
         idData? .data =:: idData
-        idData switch
-          Variable case
-            program [] .stack
-              idData .Variable .value list.append
-            program .stack=
-            break
-          Procedure case
-            idData .Procedure program evaluateCall
-            break
+        ## TODO better way to distinguish procedures from procedure pointers
+        idData .value .value .Procedure ?? and idData .value .valType .None ?? if
+            idData .value .value .Procedure program evaluateCall
+        else
+          program [] .stack
+            idData .value list.append
+          program .stack=
         end
         break
-      Integer case
+      Constant case
         program [] .stack
-          token .Integer Value .Int Type .None TypedValue new list.append
-        program .stack=
-        break
-      Float case
-        program [] .stack
-          token .Float Value .Float Type .None TypedValue new list.append
+          token .Constant list.append
         program .stack=
         break
       Block case
@@ -408,6 +408,7 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
             ## ensure arguments do not interfer with return values
             0:iSize program offsetStack ..drop
             break
+          ## TODO? declare procedure when hitting => / =>: token
           PROCEDURE case ip token .Block .target + ip= break ## skip type-blocks (for now)
           WHILE case break ## nothing to do
         end
@@ -415,8 +416,6 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
       EndBlock case
         ip token .EndBlock .target + ip=
         break
-      Declare TypedInitialize case
-        "Explicitly typed Variables are not supported" ..panic
       SetValue case
         1:iSize program checkStack if
           "stack underflow" ..panic
@@ -425,16 +424,20 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
           list.pop =:: value
         program .stack=
         program .identifiers token .SetValue map.at =:: prevData?
-        prevData? optional.isEmpty or prevData? .data [] .Variable ?? ! or
-            prevData? .data .Variable [] .modifiers IdModifier.MUTABLE & ? ! if
+        prevData? optional.isEmpty or
+            prevData? .data [] .modifiers IdModifier.MUTABLE & ? ! if
           "Error handling" ..panic
         else
-          value prevData? .data .Variable .value=
+          ## TODO type-checking
+          value prevData? .data .value=
         end
         break
       Initialize case
         1:iSize program checkStack if
           "stack underflow" ..panic
+        end
+        token .Initialize .initType .AUTO ?? ! if
+          "Explicitly typed Variables are not supported" ..panic
         end
         program [] .stack
           list.pop =:: value
@@ -442,7 +445,7 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
         ## TODO ensure value is typed ( replace int literal with i32 and float literal with f64 )
         program .identifiers
           token .Initialize .name
-          value token .Initialize .modifiers IdData new Identifier .Variable
+          value token .Initialize .modifiers Identifier new
         map.put =:: prevData?
         prevData? optional.hasData if
           program .identifiers token .Initialize .name prevData? .data map.put ..drop
