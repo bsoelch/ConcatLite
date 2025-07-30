@@ -2,6 +2,7 @@ import stringIO
 import arenaAlloc
 import map
 import numbers/printNumbers
+import future/rcSlice
 using std.literals.
 
 type : export: Type
@@ -29,17 +30,38 @@ union(
   ProcedureType ptr : Procedure
 ) =:: export: Type
 type : export: Procedure
+type : export: Value
 union(
   bool : Bool
   i64 : Int
   f64 : Float
   Type : Type
   Procedure ptr : Procedure
+  Value rcSlice : Composite
 ) =:: export: Value
 struct(
   Value : value
   Type : valType
 ) =:: export: TypedValue
+proc( TypedValue -> TypedValue ) =>: export: useTypedValue
+  $ .value useValue >$ .value=
+end
+proc( Value : val -> Value ) =>: export: useValue
+  val .Composite ?? ! if val return end
+  val .Composite [] .length for =:: i
+    val .Composite i rcSlice.get
+      useValue
+    val .Composite i rcSlice.set
+  end
+  val .Composite rcSlice.use Value .Composite
+end
+proc( Value : val -> ) =>: export: freeValue
+  val .Composite ?? ! if return end
+  val .Composite [] .length for =:: i
+    val .Composite i rcSlice.get freeValue
+  end
+  val .Composite rcSlice.free
+end
 proc( Type : t -> ) =>: export: printType
   t switch
     None case "?":s io.print break
@@ -75,6 +97,11 @@ proc( Value : val -> ) =>: export: printValue
     Bool case val .Bool if "true":s else "false":s end io.print break
     Type case val .Type printType break
     Procedure case "procedure@":s io.print val .Procedure iPtr cast! i64 cast.u io.print break
+    Composite case
+      '{' io.printC
+      val .Composite [] .length for =:: i
+        ' ' io.printC val .Composite i rcSlice.get printValue
+      end " }":s io.print
   end
 end
 proc( TypedValue : val -> ) =>: export: printTypedValue
@@ -156,6 +183,7 @@ union(
   CodeBlock : Block
   CodeBlock : EndBlock
   StackOp : StackOp
+  _ : New
   _ : EOF
 ) =:: export: Token
 proc( Token : token -> ) =>: export: printToken
@@ -196,9 +224,8 @@ proc( Token : token -> ) =>: export: printToken
         Drop case "Drop: ":s io.print token .StackOp .Drop break
       end io.println
       break
-    EOF case
-      "EOF":s io.println
-      break
+    New case "New":s io.println break
+    EOF case "EOF":s io.println break
   end
 end
 type : export: BuiltIn

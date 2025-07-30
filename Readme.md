@@ -9,19 +9,21 @@ A minimal interpreter for a subset of the Concat language
 - [*] While loops
 - [*] Variables
 - [*] User defined procedures
-- [ ] Named procedure arguments
+- [*] Tuples
 - [ ] Support for other number types
-- [ ] Arrays & Pointers
-- [ ] Structures
-- [ ] Enums
+- [ ] Tuple element access
 - [ ] Unions
+- [ ] Enums
+- [ ] Arrays & Pointers
+- [ ] String Literals
 - [ ] Comments
-- [ ] Named Types
+- [ ] Named procedure arguments
+- [ ] Named tuple elements
 - [ ] Imports
 - [ ] Namespaces
+- [ ] Switch-Case
 - [ ] Procedure Overloads
 - [ ] For loops
-- [ ] String Literals
-- [ ] Switch-Case
+- [ ] Named Types
 - [ ] ? Generics
 - [ ] ? Type-Sets

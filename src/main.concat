@@ -100,6 +100,8 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
     1 StackOp .Copy Token .StackOp return
   else word "..drop":s string.eq _if
     1 StackOp .Drop Token .StackOp return
+  else word "new":s string.eq _if
+    Token .New return
   else word "if":s string.eq _if
     program [] .openBlocks
       ## IfBlockInfo
@@ -372,7 +374,7 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
           idData .value .value .Procedure program evaluateCall
         else
           program [] .stack
-            idData .value list.append
+            idData .value useTypedValue list.append
           program .stack=
         end
         break
@@ -454,6 +456,7 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
             prevData? .data [] .modifiers IdModifier.MUTABLE & ? ! if
           "Error handling" ..panic
         else
+          prevData? .data .value [] .value freeValue
           ## TODO type-checking
           value prevData? .data .value=
         end
@@ -478,6 +481,32 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
           "Error handling" ..panic
         end
         break
+      New case
+        1:iSize program checkStack if
+          "stack underflow" ..panic
+        end
+        program [] .stack
+          list.pop asType =:: tupleType
+        program .stack=
+        tupleType .Tuple ?? ! if
+          "error handling" ..panic
+        end
+        tupleType .Tuple .elements [] .length program checkStack if
+          "stack underflow" ..panic
+        end
+        tupleType .Tuple .elements [] .length Value rcSlice.create =:: tupleData
+        program [] .stack .length tupleType .Tuple .elements [] .length - =:: offset
+        0:iSize =:: mut: index
+        program [] .stack
+          $ list.asSlice offset slice.tail for =:: elt
+            ## TODO? check element type
+            elt .value tupleData index rcSlice.set
+            index 1:iSize + index=
+          end
+          offset list.setLength
+          tupleData Value .Composite tupleType TypedValue new list.push
+        program .stack=
+        break
       StackOp case
         token .StackOp switch
           Copy case
@@ -486,7 +515,7 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
               "stack underflow" ..panic
             end
             program [] .stack
-              $ $ .length copyOffset - [] list.push
+              $ $ .length copyOffset - [] useTypedValue list.push
             program .stack=
             break
           Drop case
@@ -495,7 +524,9 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
               "stack underflow" ..panic
             end
             program [] .stack
-              $ .length toDrop - list.setLength
+              $ .length toDrop - =:: newLength
+              $ list.asSlice newLength slice.tail for .value freeValue end
+              newLength list.setLength
             program .stack=
           break
           Rotate case
