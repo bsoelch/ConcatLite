@@ -205,7 +205,7 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
         program [] .tokens blockEnd list.append program .tokens=
         closed .procedureBlock .procName
           closed .procedureBlock .idModifiers
-        InitType .TYPED_PROC InitInfo new Token .Initialize return
+        InitType .AUTO InitInfo new Token .Initialize return
       compositeBlock case "error handling" ..panic
     end
   else word "(":s string.eq _if
@@ -303,13 +303,13 @@ proc( string : line Program ptr.mut : program -> bool ) =>: parseLine
 end
 
 proc( Procedure ptr : procData Program ptr.mut : program -> ) =>: evaluateCall
-  procData [] .arguments .length program checkStack if
+  procData [] .procType .inTypes .elements [] .length program checkStack if
     "stack underflow" ..panic
   end
   ## TODO? check argument types
-  procData [] .arguments .length program offsetStack =:: oldOffset
+  procData [] .procType .inTypes .elements [] .length program offsetStack =:: oldOffset
   procData [] .implementation switch
-    code case
+    code case ## TODO? ensure proc-body is type-checked
       procData .implementation [] .code program evaluateBlock
       break
     builtIn case
@@ -360,8 +360,8 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
         end
         idData? .data =:: idData
         ## TODO better way to distinguish procedures from procedure pointers
-        idData .value .value .Procedure ?? and idData .value .valType .None ?? if
-            idData .value .value .Procedure program evaluateCall
+        idData .value .value .Procedure ?? and idData .value .valType .Procedure ?? if
+          idData .value .value .Procedure program evaluateCall
         else
           program [] .stack
             idData .value list.append
@@ -409,7 +409,25 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
             0:iSize program offsetStack ..drop
             break
           ## TODO? declare procedure when hitting => / =>: token
-          PROCEDURE case ip token .Block .target + ip= break ## skip type-blocks (for now)
+          PROCEDURE case
+            1:iSize program checkStack if
+              "stack underflow" ..panic
+            end
+            program [] .stack
+              list.pop asType =:: procType
+            program .stack=
+            token .Block .target =:: procLength
+            program [] .memory
+              tokens ip 1 + procLength slice.getSlice mixedArena.copySlice =:: procBody
+              procType .Procedure
+                procBody slice.freeze ProcImplementation .code
+              Procedure new mixedArena.copyValue =:: procPtr
+            program .memory=
+            program [] .stack
+              procPtr Value .Procedure procType TypedValue new list.append
+            program .stack=
+            ip procLength + ip= ## skip procedure body
+            break
           WHILE case break ## nothing to do
         end
         break

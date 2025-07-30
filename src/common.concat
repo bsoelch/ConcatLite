@@ -91,6 +91,15 @@ proc( TypedValue : val -> bool ) =>: export: asBool
   end
   val .value .Bool
 end
+proc( TypedValue : val -> Type ) =>: export: asType
+  val .valType .Type ?? ! and val .valType .None ?? ! if
+    "error handling" ..panic
+  end
+  val .value .Type ?? ! if
+    "error handling" ..panic
+  end
+  val .value .Type
+end
 proc( TypedValue : val -> i32 ) =>: export: asI32
   val .valType .I32 ?? ! and val .valType .None ?? ! if
     "error handling" ..panic
@@ -132,7 +141,7 @@ overload: & IdModifier.and end
 overload: | IdModifier.or end
 overload: ? IdModifier.toBool end
 
-enum( DECLARE TYPED AUTO TYPED_PROC ) =:: export: InitType
+enum( DECLARE TYPED AUTO ) =:: export: InitType
 struct( string : name IdModifier : modifiers InitType : initType ) =:: export: InitInfo
 union(
   string : Identifier
@@ -161,7 +170,6 @@ proc( Token : token -> ) =>: export: printToken
         DECLARE case "Declare: \"":s io.print break
         AUTO case "Initialize: \"":s io.print break
         TYPED case "Typed Initialize: \"":s io.print break
-        TYPED_PROC case "Proc Initialize: \"":s io.print break
       end
       token .Initialize .name io.print
       "\"":s io.println
@@ -186,7 +194,7 @@ union(
   BuiltIn : builtIn
 ) =:: export: ProcImplementation
 struct(
-  Type slice : arguments
+  ProcedureType ptr : procType
   ProcImplementation : implementation
 ) =:: export: Procedure
 struct(

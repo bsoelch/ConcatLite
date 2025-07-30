@@ -8,18 +8,19 @@ A minimal interpreter for a subset of the Concat language
 - [*] If-Blocks
 - [*] While loops
 - [*] Variables
-- [ ] User defined procedures
-- [ ] Procedure Overloads
+- [*] User defined procedures
+- [ ] Named procedure arguments
 - [ ] Support for other number types
 - [ ] Arrays & Pointers
 - [ ] Structures
 - [ ] Enums
 - [ ] Unions
+- [ ] Comments
 - [ ] Named Types
 - [ ] Imports
 - [ ] Namespaces
+- [ ] Procedure Overloads
 - [ ] For loops
-- [ ] Comments
 - [ ] String Literals
 - [ ] Switch-Case
 - [ ] ? Generics
