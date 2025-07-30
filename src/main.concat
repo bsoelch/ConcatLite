@@ -92,6 +92,14 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
     next i string.tail parseDeclaration =:: name =:: idFlags +
       name .length 0:iSize == if ..drop i0 Token .EOF return end
     name idFlags InitType .AUTO InitInfo new Token .Initialize return
+  else word "$":s string.eq _if
+    0 StackOp .Copy Token .StackOp return
+  else word "$1":s string.eq _if
+    1 StackOp .Copy Token .StackOp return
+  else word ">$":s string.eq _if
+    1 StackOp .Copy Token .StackOp return
+  else word "..drop":s string.eq _if
+    1 StackOp .Drop Token .StackOp return
   else word "if":s string.eq _if
     program [] .openBlocks
       ## IfBlockInfo
@@ -470,6 +478,51 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
           "Error handling" ..panic
         end
         break
+      StackOp case
+        token .StackOp switch
+          Copy case
+            token .StackOp .Copy iSize cast.u 1:iSize + =:: copyOffset
+            copyOffset program checkStack if
+              "stack underflow" ..panic
+            end
+            program [] .stack
+              $ $ .length copyOffset - [] list.push
+            program .stack=
+            break
+          Drop case
+            token .StackOp .Drop iSize cast.u =:: toDrop
+            toDrop program checkStack if
+              "stack underflow" ..panic
+            end
+            program [] .stack
+              $ .length toDrop - list.setLength
+            program .stack=
+          break
+          Rotate case
+            token .StackOp .Rotate
+              $ 0 < =:: reverse
+              reverse if -_ end
+            iSize cast.u 1:iSize + =:: count
+            count program checkStack if
+              "stack underflow" ..panic
+            end
+            reverse if ## rotate top element down
+              program [] .stack $ .length 1:iSize - [] =:: hi
+              program [] .stack $ .data >$ .length count - @[]
+                program [] .stack $ .data >$ .length count - 1:iSize + @[]
+                count 1:iSize -
+              mem.move ..drop
+              hi program [] .stack $ .length count - =[]
+            else ## rotate element at positon count up
+              program [] .stack $ .length count - [] =:: low
+              program [] .stack $ .data >$ .length count - 1:iSize + @[]
+                program [] .stack $ .data >$ .length count - @[]
+                count 1:iSize -
+              mem.move ..drop
+              low program [] .stack $ .length 1:iSize - =[]
+            end
+            break
+        end break
       EOF case return
     end
   finally ip 1 + ip= end
