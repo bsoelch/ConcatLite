@@ -497,6 +497,18 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
         program [] .stack
           list.pop asType =:: tupleType
         program .stack=
+        tupleType .Array ?? if
+          tupleType .Array .size [] .Fixed ?? ! if
+            "error handling" ..panic
+          end
+          ## TODO? arrays of packed data instead of Value arrays
+          tupleType .Array .size [] .Fixed iSize cast.u Value rcSlice.create =:: arrayData
+          arrayData rcSlice.clear ## TODO initialize elements with usefull default value for given type
+          program [] .stack
+            arrayData Value .Composite tupleType TypedValue new list.push
+          program .stack=
+          return
+        end
         tupleType .Tuple ?? ! if
           "error handling" ..panic
         end

@@ -11,11 +11,13 @@ A minimal interpreter for a subset of the Concat language
 - [*] User defined procedures
 - [*] Tuples
 - [*] Tuple element access
+- [*] Array & Pointer types
 - [ ] Support for other number types
 - [ ] Unions
 - [ ] Enums
-- [ ] Arrays & Pointers
 - [ ] String Literals
+- [ ] fully support Arrays & Pointers
+- [ ] Initializer Literals
 - [ ] Comments
 - [ ] Named procedure arguments
 - [ ] Named tuple elements

@@ -15,6 +15,14 @@ struct(
   CompositeType : outTypes
 ) =:: export: ProcedureType
 union(
+  i64 : Fixed
+  _ : Unbounded
+) =:: export: ArraySize
+struct(
+  Type : base
+  ArraySize : size
+) =:: export: ArrayType
+union(
   _ : None
   _ : Bool
   _ : I8
@@ -28,6 +36,9 @@ union(
   CompositeType ptr : Tuple
   CompositeType ptr : Union
   ProcedureType ptr : Procedure
+  ArrayType ptr : Array
+  ArrayType ptr : Pointer
+  ArrayType ptr : MutablePointer
 ) =:: export: Type
 type : export: Procedure
 type : export: Value
@@ -62,6 +73,12 @@ proc( Value : val -> ) =>: export: freeValue
   end
   val .Composite rcSlice.free
 end
+proc( ArraySize : size -> ) =>: printArraySize
+  size switch
+    Fixed case size .Fixed io.print return
+    Unbounded case '_' io.printC return
+  end
+end
 proc( Type : t -> ) =>: export: printType
   t switch
     None case "?":s io.print break
@@ -88,6 +105,21 @@ proc( Type : t -> ) =>: export: printType
         "-> ":s io.print
         t .Procedure .outTypes [] .elements for printType ' ' io.print end
       ')' io.print break
+    Array case
+      t .Array [] .base printType ' ' io.print
+        t .Array [] .size printArraySize ' ' io.print
+      "array":s io.print
+       break
+    Pointer case
+      t .Pointer [] .base printType ' ' io.print
+        t .Pointer [] .size printArraySize ' ' io.print
+      "ptr":s io.print
+       break
+    MutablePointer case
+      t .MutablePointer [] .base printType ' ' io.print
+        t .MutablePointer [] .size printArraySize ' ' io.print
+      "ptr.mut":s io.print
+       break
   end
 end
 proc( Value : val -> ) =>: export: printValue
