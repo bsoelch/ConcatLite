@@ -19,7 +19,7 @@ union(
   _ : Unbounded
 ) =:: export: ArraySize
 struct(
-  Type : base
+  Type : baseType
   ArraySize : size
 ) =:: export: ArrayType
 union(
@@ -73,6 +73,38 @@ proc( Value : val -> ) =>: export: freeValue
   end
   val .Composite rcSlice.free
 end
+proc( Type : tp -> Value ) =>: export: defaultValue
+  tp switch
+    ## TODO? map non-type to special wildcard value
+    None Bool case false Value .Bool return
+    I8 I16 I32 I64 case 0 Value .Int return
+    F16 F32 F64 case 0.0 Value .Float return
+    Type case Type .None Value .Type return
+    Tuple case
+      tp .Tuple .elements [] .length iSize cast.u =:: size
+      size Value rcSlice.create =:: tupleData
+      size for =:: i
+        tp .Tuple [] .elements i [] defaultValue tupleData i rcSlice.set
+      end
+      tupleData Value .Composite return
+    Array case
+      tp .Array .size [] .Fixed ?? ! if
+        "error handling" ..panic
+      end
+      ## TODO? add special case handling for arrays of primitive types
+      tp .Array [] .baseType defaultValue =:: eltValue
+      tp .Array .size [] .Fixed iSize cast.u =:: size
+      size Value rcSlice.create =:: arrayData
+      size for =:: i
+        eltValue useValue arrayData i rcSlice.set
+      end
+      eltValue freeValue ## ref-count is one too high
+      arrayData Value .Composite return
+    Union case "unimplemented: union values" ..panic
+    Procedure case "unimplemented: default procedure" ..panic ## ? default procedure that crashes program when called
+    Pointer MutablePointer case "unimplemented: pointer values" ..panic
+  end
+end
 proc( ArraySize : size -> ) =>: printArraySize
   size switch
     Fixed case size .Fixed io.print return
@@ -106,17 +138,17 @@ proc( Type : t -> ) =>: export: printType
         t .Procedure .outTypes [] .elements for printType ' ' io.print end
       ')' io.print break
     Array case
-      t .Array [] .base printType ' ' io.print
+      t .Array [] .baseType printType ' ' io.print
         t .Array [] .size printArraySize ' ' io.print
       "array":s io.print
        break
     Pointer case
-      t .Pointer [] .base printType ' ' io.print
+      t .Pointer [] .baseType printType ' ' io.print
         t .Pointer [] .size printArraySize ' ' io.print
       "ptr":s io.print
        break
     MutablePointer case
-      t .MutablePointer [] .base printType ' ' io.print
+      t .MutablePointer [] .baseType printType ' ' io.print
         t .MutablePointer [] .size printArraySize ' ' io.print
       "ptr.mut":s io.print
        break
