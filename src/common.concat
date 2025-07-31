@@ -178,6 +178,8 @@ union(
 union(
   string : Identifier
   string : SetValue
+  i64 : GetElement
+  i64 : SetElement
   InitInfo : Initialize
   TypedValue : Constant
   CodeBlock : Block
@@ -198,6 +200,12 @@ proc( Token : token -> ) =>: export: printToken
       "SetValue: \"":s io.print
       token .SetValue io.print
       "\"":s io.println
+      break
+    GetElement case
+      "GetElement: ":s io.print token .GetElement io.println
+      break
+    SetElement case
+      "SetElement: ":s io.print token .SetElement io.println
       break
     Initialize case
       token .Initialize .initType switch

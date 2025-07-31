@@ -100,6 +100,16 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
     1 StackOp .Copy Token .StackOp return
   else word "..drop":s string.eq _if
     1 StackOp .Drop Token .StackOp return
+  else word .length 1:iSize u> and word 0 string.charAt '.' == _if
+    word $ .length 1:iSize - string.charAt '=' == =:: setValue
+    word 1 string.tail
+      setValue if $ .length 1:iSize - string.head end
+    =:: eltName
+    eltName 10 number.tryParseUInt switch
+      NONE UNSIGNED case break
+      default "error handling" ..panic
+    end =:: eltId
+    eltId setValue if Token .SetElement else Token .GetElement end return
   else word "new":s string.eq _if
     Token .New return
   else word "if":s string.eq _if
@@ -418,7 +428,6 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
             ## ensure arguments do not interfer with return values
             0:iSize program offsetStack ..drop
             break
-          ## TODO? declare procedure when hitting => / =>: token
           PROCEDURE case
             1:iSize program checkStack if
               "stack underflow" ..panic
@@ -507,6 +516,57 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
           tupleData Value .Composite tupleType TypedValue new list.push
         program .stack=
         break
+      GetElement SetElement case
+        1:iSize program checkStack if
+          "stack underflow" ..panic
+        end
+        token .SetElement ?? =:: setValue
+        program [] .stack
+          list.pop =:: tuple
+        program .stack=
+        ## TODO? check type
+        tuple .valType .Tuple ?? ! or tuple .value .Composite ?? ! if
+          "error handling" ..panic
+        end
+        setValue if token .SetElement else token .GetElement end =:: index
+        index tuple .value .Composite [] .length i64 cast.u u>= if
+          "error handling" ..panic
+        end
+        setValue ! if
+          tuple .value .Composite [] .length i64 cast.u for =:: i
+            i index == if continue end
+            tuple .value .Composite i iSize cast.u rcSlice.get freeValue
+          end
+          program [] .stack
+            tuple .value .Composite index iSize cast.u rcSlice.get
+            tuple .valType .Tuple [] .elements index slice.get TypedValue new list.append
+          program .stack=
+          return
+        end
+        1:iSize program checkStack if
+          "stack underflow" ..panic
+        end
+        program [] .stack
+          list.pop =:: value
+        program .stack=
+        ## TODO? check element type
+        tuple .value .Composite [] .RC 1 == if ## only reference -> modify in plane
+          tuple .value .Composite
+        else
+          tuple .value .Composite [] .length Value rcSlice.create =:: copy
+          tuple .value .Composite [] .length i64 cast.u for =:: i
+            i index == if continue end
+            tuple .value .Composite i iSize cast.u rcSlice.get
+            copy i iSize cast.u rcSlice.set
+          end
+          tuple .value .Composite rcSlice.free
+          copy
+        end =:: newTuple
+        value .value newTuple index iSize cast.u rcSlice.set
+        program [] .stack
+          newTuple Value .Composite tuple .valType TypedValue new list.append
+        program .stack=
+        return
       StackOp case
         token .StackOp switch
           Copy case

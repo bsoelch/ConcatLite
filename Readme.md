@@ -10,8 +10,8 @@ A minimal interpreter for a subset of the Concat language
 - [*] Variables
 - [*] User defined procedures
 - [*] Tuples
+- [*] Tuple element access
 - [ ] Support for other number types
-- [ ] Tuple element access
 - [ ] Unions
 - [ ] Enums
 - [ ] Arrays & Pointers
