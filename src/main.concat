@@ -97,7 +97,7 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
   else word "$1":s string.eq _if
     1 StackOp .Copy Token .StackOp return
   else word ">$":s string.eq _if
-    1 StackOp .Copy Token .StackOp return
+    1 StackOp .Rotate Token .StackOp return
   else word "..drop":s string.eq _if
     1 StackOp .Drop Token .StackOp return
   else word .length 1:iSize u> and word 0 string.charAt '.' == _if
@@ -501,7 +501,7 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
           program [] .stack
             tupleType defaultValue tupleType TypedValue new list.push
           program .stack=
-          return
+          break
         end
         tupleType .Tuple ?? ! if
           "error handling" ..panic
@@ -528,26 +528,29 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
         end
         token .SetElement ?? =:: setValue
         program [] .stack
-          list.pop =:: tuple
+          list.pop =:: composite
         program .stack=
         ## TODO? check type
-        tuple .valType .Tuple ?? ! or tuple .value .Composite ?? ! if
+        composite .value .Composite ?? ! or
+            composite .valType .Tuple ?? ! and composite .valType .Array ?? ! if
           "error handling" ..panic
         end
         setValue if token .SetElement else token .GetElement end =:: index
-        index tuple .value .Composite [] .length i64 cast.u u>= if
+        index composite .value .Composite [] .length i64 cast.u u>= if
           "error handling" ..panic
         end
         setValue ! if
-          tuple .value .Composite [] .length i64 cast.u for =:: i
-            i index == if continue end
-            tuple .value .Composite i iSize cast.u rcSlice.get freeValue
-          end
+          composite .valType .Tuple ?? if
+            composite .valType .Tuple [] .elements index slice.get
+          else
+            composite .valType .Array [] .baseType
+          end =:: eltType
           program [] .stack
-            tuple .value .Composite index iSize cast.u rcSlice.get
-            tuple .valType .Tuple [] .elements index slice.get TypedValue new list.append
+            composite .value .Composite index iSize cast.u rcSlice.get useValue
+            eltType TypedValue new list.append
           program .stack=
-          return
+          composite .value freeValue
+          break
         end
         1:iSize program checkStack if
           "stack underflow" ..panic
@@ -556,23 +559,23 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
           list.pop =:: value
         program .stack=
         ## TODO? check element type
-        tuple .value .Composite [] .RC 1 == if ## only reference -> modify in plane
-          tuple .value .Composite
+        composite .value .Composite [] .RC 1 == if ## only reference -> modify in plane
+          composite .value .Composite
         else
-          tuple .value .Composite [] .length Value rcSlice.create =:: copy
-          tuple .value .Composite [] .length i64 cast.u for =:: i
+          composite .value .Composite [] .length Value rcSlice.create =:: copy
+          composite .value .Composite [] .length i64 cast.u for =:: i
             i index == if continue end
-            tuple .value .Composite i iSize cast.u rcSlice.get
+            composite .value .Composite i iSize cast.u rcSlice.get
             copy i iSize cast.u rcSlice.set
           end
-          tuple .value .Composite rcSlice.free
+          composite .value .Composite rcSlice.free
           copy
-        end =:: newTuple
-        value .value newTuple index iSize cast.u rcSlice.set
+        end =:: newElements
+        value .value newElements index iSize cast.u rcSlice.set
         program [] .stack
-          newTuple Value .Composite tuple .valType TypedValue new list.append
+          newElements Value .Composite composite .valType TypedValue new list.append
         program .stack=
-        return
+        break
       StackOp case
         token .StackOp switch
           Copy case
@@ -605,15 +608,15 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
             end
             reverse if ## rotate top element down
               program [] .stack $ .length 1:iSize - [] =:: hi
-              program [] .stack $ .data >$ .length count - @[]
-                program [] .stack $ .data >$ .length count - 1:iSize + @[]
+              program [] .stack $ .data >$ .length count - 1:iSize + @[]
+                program [] .stack $ .data >$ .length count - @[]
                 count 1:iSize -
               mem.move ..drop
               hi program [] .stack $ .length count - =[]
             else ## rotate element at positon count up
               program [] .stack $ .length count - [] =:: low
-              program [] .stack $ .data >$ .length count - 1:iSize + @[]
-                program [] .stack $ .data >$ .length count - @[]
+              program [] .stack $ .data >$ .length count - @[]
+                program [] .stack $ .data >$ .length count - 1:iSize + @[]
                 count 1:iSize -
               mem.move ..drop
               low program [] .stack $ .length 1:iSize - =[]

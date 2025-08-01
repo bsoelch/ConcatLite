@@ -12,11 +12,15 @@ A minimal interpreter for a subset of the Concat language
 - [*] Tuples
 - [*] Tuple element access
 - [*] Array & Pointer types
+- [*] Array element access
 - [ ] Support for other number types
 - [ ] Unions
 - [ ] Enums
 - [ ] String Literals
-- [ ] fully support Arrays & Pointers
+- [ ] ? primitive arrays
+- [ ] dynamic array/pointer indexing
+- [ ] pointer element access
+- [ ] unsized pointers
 - [ ] Initializer Literals
 - [ ] Comments
 - [ ] Named procedure arguments
