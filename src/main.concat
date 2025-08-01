@@ -51,6 +51,15 @@ proc( string : mut: expr -> i32 IdModifier string ) =>: parseDeclaration
   end
   i0 modifiers expr i string.head
 end
+proc( CompositeBlockType : compType Program ptr.mut : program -> ) =>: startCompositeBlock
+  program [] .openBlocks
+    ## CompositeBlockInfo
+      program [] .tokens .length i32 cast.u ## blockStart
+      -1 ## toIndex
+      compType
+    CompositeBlockInfo new BlockInfo .compositeBlock list.push
+  program .openBlocks=
+end
 proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
   0 =:: mut: i0
   ## skip leading spaces
@@ -229,32 +238,14 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
       compositeBlock case "error handling" ..panic
     end
   else word "(":s string.eq _if
-    program [] .openBlocks
-      ## CompositeBlockInfo
-        program [] .tokens .length i32 cast.u ## blockStart
-        -1 ## toIndex
-        CompositeBlockType .NONE
-      CompositeBlockInfo new BlockInfo .compositeBlock list.push
-    program .openBlocks=
+    CompositeBlockType .NONE program startCompositeBlock
+    -1 BlockType .TUPLE_TYPE CodeBlock new Token .Block return
+  else word "struct(":s string.eq _if
+    CompositeBlockType .TUPLE program startCompositeBlock
     -1 BlockType .TUPLE_TYPE CodeBlock new Token .Block return
   else word "proc(":s string.eq _if
-    program [] .openBlocks
-      ## CompositeBlockInfo
-        program [] .tokens .length i32 cast.u ## blockStart
-        -1 ## toIndex
-        CompositeBlockType .PROC
-      CompositeBlockInfo new BlockInfo .compositeBlock list.push
-    program .openBlocks=
+    CompositeBlockType .PROC program startCompositeBlock
     -1 BlockType .PROC_TYPE CodeBlock new Token .Block return
-  else word "struct(":s string.eq _if
-    program [] .openBlocks
-      ## CompositeBlockInfo
-        program [] .tokens .length i32 cast.u ## blockStart
-        -1 ## toIndex
-        CompositeBlockType .TUPLE
-      CompositeBlockInfo new BlockInfo .compositeBlock list.push
-    program .openBlocks=
-    -1 BlockType .TUPLE_TYPE CodeBlock new Token .Block return
   else word "->":s string.eq _if
     program [] .openBlocks list.peek =:: procBlock?
     procBlock? .data .compositeBlock =:: procBlock
@@ -266,14 +257,19 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
     end
     program [] .tokens .length i32 cast.u procBlock .toIndex=
     0 BlockType .TO_TYPE CodeBlock new Token .Block return
-  else word ")":s string.eq _if
+  else word "{":s string.eq _if
+    CompositeBlockType .INITIALIZER program startCompositeBlock
+    -1 BlockType .INITIALIZER CodeBlock new Token .Block return
+  else word ")":s string.eq or word "}":s string.eq _if
     program [] .openBlocks .length 0:iSize == if
       "error handling" ..panic
     end
+    word "}":s string.eq =:: isInitializer
     program [] .openBlocks
       list.pop =:: closed
     program .openBlocks=
-    closed .compositeBlock ?? ! if
+    closed .compositeBlock ?? ! or
+        closed .compositeBlock .compType .INITIALIZER ?? isInitializer != if
       "error handling" ..panic
     end
     closed .compositeBlock .blockStart =:: startIndex
@@ -281,15 +277,18 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
       program [] .tokens startIndex @[]
     .Block .target=
     closed .compositeBlock .compType switch
-      NONE TUPLE case BlockType .TUPLE_TYPE break
+      NONE TUPLE case
+       0 BlockType .TUPLE_TYPE CodeBlock new Token .EndBlock return
       PROC case
         closed .compositeBlock .toIndex =:: toIndex
         program [] .tokens .length i32 cast.u toIndex -
           program [] .tokens toIndex @[]
         .Block .target=
-        BlockType .PROC_TYPE break
-    end =:: blockType
-    0 blockType CodeBlock new Token .EndBlock return
+       0 BlockType .PROC_TYPE CodeBlock new Token .EndBlock return
+      INITIALIZER case
+       0 BlockType .INITIALIZER CodeBlock new Token .EndBlock return
+    end
+    ..unreachable
   end
   word .length 2:iSize u>= and word $ .length 1:iSize - string.charAt '=' == and
       word .length 2:iSize u> or "<>=!":s word 0 string.charAt string.contains ! if
@@ -365,6 +364,22 @@ proc( Token slice : tokens bool : isProc Program ptr.mut : program -> Type ) =>:
   oldOffset program resetStack
   resType return
 end
+proc( Token slice : tokens Program ptr.mut : program -> Value ) =>: evaluateInitializerBlock
+  0:iSize program offsetStack =:: oldOffset
+  program [] .stackOffset =:: baseOffset
+  ## TODO? seperate interpreter mode for correct handling of named declarations
+  tokens program evaluateBlock
+  program [] .stackOffset baseOffset == "stack offset did not change" assert
+  program [] .stack
+    $ list.asSlice baseOffset slice.tail =:: tupleElts0
+    tupleElts0 .length Value rcSlice.create =:: resVal
+    0:iSize =:: mut: i
+    tupleElts0 for .value resVal i rcSlice.set i 1:iSize + i= end
+    baseOffset list.setLength
+  program .stack=
+  oldOffset program resetStack
+  resVal Value .Composite return
+end
 proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
   0:i32 =:: mut: ip
   while ip iSize cast.u tokens .length u< do
@@ -427,6 +442,22 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
           TO_TYPE case
             ## ensure arguments do not interfer with return values
             0:iSize program offsetStack ..drop
+            break
+          INITIALIZER case
+            ## TypedValue
+              ## evaluateInitializerBlock
+                tokens
+                  ip 1 + iSize cast.u
+                  token .Block .target iSize cast.u
+                slice.getSlice
+              program evaluateInitializerBlock
+              Type .None
+            TypedValue new =:: newVal
+            ## ! evaluateInitializerBlock modifies stack -> cannot inline type-declaration
+            program [] .stack
+              newVal list.append
+            program .stack=
+            ip token .Block .target + ip=
             break
           PROCEDURE case
             1:iSize program checkStack if
@@ -530,8 +561,8 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
         program [] .stack
           list.pop =:: composite
         program .stack=
-        ## TODO? check type
-        composite .value .Composite ?? ! or
+        ## TODO check type
+        composite .value .Composite ?? ! or composite .valType .None ?? ! and
             composite .valType .Tuple ?? ! and composite .valType .Array ?? ! if
           "error handling" ..panic
         end
