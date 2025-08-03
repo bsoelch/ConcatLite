@@ -20,36 +20,33 @@ proc( MixedArenaAllocator ptr.mut : alloc string : str -> string ) =>: copyStrin
   alloc [] str string.chars mixedArena.copySlice slice.freeze string.fromChars >$ alloc =[]
 end
 
-proc( string : mut: expr -> i32 IdModifier string ) =>: parseDeclaration
-  0 =:: mut: i
+proc( string : mut: next -> i32 string string ) =>: nextWord
   0 =:: mut: i0
+  ## skip leading spaces
+  while i0 iSize cast.u next .length u< and next i0 string.charAt char.isSpace do i0 1 + i0= end
+  next i0 string.tail next=
+  0 =:: mut: i
+  while i iSize cast.u next .length u< and next i string.charAt char.isSpace ! do
+    i 1 + i=
+  end
+  i0 next i iSize cast.u string.cutIndex
+end
+proc( string : mut: expr -> i32 IdModifier string ) =>: parseDeclaration
   IdModifier.NONE =:: mut: modifiers
+  string.empty =:: mut: name
+  0 =:: mut: i
   while
-    expr i string.tail expr=
-    ## skip leading spaces
-    0 i=
-    while i iSize cast.u expr .length u< and expr i string.charAt char.isSpace do i 1 + i= end
-    expr .length 0:iSize == if
-      i0 modifiers string.empty return
-    end
-    i0 i + i0=
-    expr i string.tail expr=
-    0 i=
-    while i iSize cast.u expr .length u< and expr i string.charAt char.isSpace ! do
-      i 1 + i=
-    end
-    i 0 == if
-      i0 modifiers string.empty return
-    end
-    i0 i + i0=
-    expr i 1 - string.charAt ':' ==
+    expr nextWord name= expr= i + i=
+    name .length 0:iSize == if 0 modifiers name return end
+    i name .length i32 cast.u + i=
+    name $ .length 1:iSize - string.charAt ':' ==
   do
-    expr i 1 - string.head =:: modif
+    name $ .length 1:iSize - string.head =:: modif
     modif "mut":s string.eq if
       modifiers IdModifier.MUTABLE | modifiers=
     end
   end
-  i0 modifiers expr i string.head
+  i modifiers name
 end
 proc( CompositeBlockType : compType Program ptr.mut : program -> ) =>: startCompositeBlock
   program [] .openBlocks
@@ -61,19 +58,11 @@ proc( CompositeBlockType : compType Program ptr.mut : program -> ) =>: startComp
   program .openBlocks=
 end
 proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
-  0 =:: mut: i0
-  ## skip leading spaces
-  while i0 iSize cast.u next .length u< and next i0 string.charAt char.isSpace do i0 1 + i0= end
-  next i0 string.tail next=
-  next .length 0:iSize == if
+  next nextWord =:: word next= =:: i0
+  word .length 0:iSize == if
     i0 Token .EOF return
   end
-  0 =:: mut: i
-  while i iSize cast.u next .length u< and next i string.charAt char.isSpace ! do
-    i 1 + i=
-  end
-  i0 i + 1 +
-  next i string.head =:: word
+  i0 word .length i32 cast.u +
   word .length 0:iSize != and word 0 string.charAt char.isDigit if
     word 0 number.tryParseInt switch
       NONE case Value .Int Type .None TypedValue new Token .Constant return
@@ -90,15 +79,15 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
     end
   end
   word ":":s string.eq if
-    next i string.tail parseDeclaration =:: name =:: idFlags +
+    next parseDeclaration =:: name =:: idFlags +
       name .length 0:iSize == if ..drop i0 Token .EOF return end
     name idFlags InitType .DECLARE InitInfo new Token .Initialize return
   else word "=:":s string.eq _if
-    next i string.tail parseDeclaration =:: name =:: idFlags +
+    next parseDeclaration =:: name =:: idFlags +
       name .length 0:iSize == if ..drop i0 Token .EOF return end
     name idFlags InitType .TYPED InitInfo new Token .Initialize return
   else word "=::":s string.eq _if
-    next i string.tail parseDeclaration =:: name =:: idFlags +
+    next parseDeclaration =:: name =:: idFlags +
       name .length 0:iSize == if ..drop i0 Token .EOF return end
     name idFlags InitType .AUTO InitInfo new Token .Initialize return
   else word "$":s string.eq _if
@@ -169,7 +158,7 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
     "unimplemented" ..panic
   else word "=>":s string.eq or word "=>:":s string.eq _if
     word .length 3:iSize == if
-      next i string.tail parseDeclaration =:: name =:: idFlags +
+      next parseDeclaration =:: name =:: idFlags +
         name .length 0:iSize == if ..drop i0 Token .EOF return end
       name idFlags
     else
