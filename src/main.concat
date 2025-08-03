@@ -22,9 +22,34 @@ end
 
 proc( string : mut: next -> i32 string string ) =>: nextWord
   0 =:: mut: i0
-  ## skip leading spaces
-  while i0 iSize cast.u next .length u< and next i0 string.charAt char.isSpace do i0 1 + i0= end
-  next i0 string.tail next=
+  while
+    ## skip leading spaces
+    while i0 iSize cast.u next .length u< and next i0 string.charAt char.isSpace do i0 1 + i0= end
+    next i0 string.tail next=
+    next "##":s string.startsWith if ## line comment
+      i0 2 + i0=
+      while i0 iSize cast.u next .length u< and next i0 string.charAt '\n' != do i0 1 + i0= end
+      continue
+    end
+    next "#+":s string.startsWith if ## block comment
+      i0 =:: i00
+      i0 3 + i0=
+      1 =:: mut: level
+      while i0 iSize cast.u next .length u< and level 0 > do
+        next i0 1 - string.charAt '+' == and next i0 string.charAt '#' == if
+          i0 1 + i0=
+          level 1 - level=
+        else next i0 1 - string.charAt '#' == and next i0 string.charAt '+' == _if
+          i0 1 + i0=
+          level 1 + level=
+        end
+        i0 1 + i0=
+      end
+      level 0 > if i00 next string.empty return end
+      continue
+    end
+    false
+  end
   0 =:: mut: i
   while i iSize cast.u next .length u< and next i string.charAt char.isSpace ! do
     i 1 + i=

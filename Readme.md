@@ -14,6 +14,7 @@ A minimal interpreter for a subset of the Concat language
 - [*] Array & Pointer types
 - [*] Array element access
 - [*] Initializer Literals
+- [*] Comments
 - [ ] Support for other number types
 - [ ] Unions
 - [ ] Enums
@@ -22,7 +23,7 @@ A minimal interpreter for a subset of the Concat language
 - [ ] dynamic array/pointer indexing
 - [ ] pointer element access
 - [ ] unsized pointers
-- [ ] Comments
+- [ ] Type Checking
 - [ ] Named procedure arguments
 - [ ] Named tuple elements
 - [ ] Imports
