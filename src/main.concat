@@ -50,7 +50,35 @@ proc( string : mut: next -> i32 string string ) =>: nextWord
     end
     false
   end
+  next .length 0:iSize == if
+    i0 next next return
+  end
   0 =:: mut: i
+  ## strings
+  next 0 string.charAt =:: c0
+  c0 '"' == or c0 '\'' == if
+    1 i=
+    while i iSize cast.u next .length u< and next i string.charAt c0 != do
+      i
+        next i string.charAt '\\' == if 1 + end
+        1 +
+      i=
+    end
+    i iSize cast.u next .length u>= if i0 next string.empty return end
+  else c0 '`' == _if
+    1 i=
+    while i iSize cast.u next .length u< do
+      next i string.charAt c0 == if
+        i 1 + iSize cast.u next .length u< and next i 1 + string.charAt c0 == if
+          i 1 + i= ## escaped `
+        else
+          break
+        end
+      end
+      i 1 + i=
+    end
+    i iSize cast.u next .length u>= if i0 next string.empty return end
+  end
   while i iSize cast.u next .length u< and next i string.charAt char.isSpace ! do
     i 1 + i=
   end
