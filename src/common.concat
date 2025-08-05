@@ -276,6 +276,8 @@ union(
   i32 : Rotate ## rotate the k-th element to the top (0 indexed), if negative do the reverse rotation
 ) =:: export: StackOp
 union(
+  string : ImportLocal
+  string : ImportLib
   string : Identifier
   string : SetValue
   i64 : GetElement
@@ -306,6 +308,12 @@ proc( Token : token -> ) =>: export: printToken
       break
     SetElement case
       "SetElement: ":s io.print token .SetElement io.println
+      break
+    ImportLocal case
+      "ImportLocal: ":s io.print token .ImportLocal io.println
+      break
+    ImportLib case
+      "ImportLib: ":s io.print token .ImportLib io.println
       break
     Initialize case
       token .Initialize .initType switch

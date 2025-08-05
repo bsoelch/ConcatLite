@@ -2,6 +2,7 @@ import io
 import stringIO
 import numbers
 import chars
+import sys
 using std.literals.
 
 import "common.concat"
@@ -222,6 +223,13 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
     eltId setValue if Token .SetElement else Token .GetElement end return
   else word "new":s string.eq _if
     Token .New return
+  else word "import":s string.eq _if
+    next nextWord =:: name next= + name .length i32 cast.u +
+    name 0 string.charAt '"' == if
+      name 1:iSize $1 .length 2:iSize - string.getSlice Token .ImportLocal return
+    else
+      name Token .ImportLib return
+    end
   else word "if":s string.eq _if
     program [] .openBlocks
       ## IfBlockInfo
@@ -399,10 +407,6 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
 end
 ## parse a single line returns true if line needs to be continued
 proc( string : line Program ptr.mut : program -> bool ) =>: parseLine
-  line "exit":s string.eq if
-    false program .running=
-    false return
-  end
   while
     line program [] .parseOffset string.tail program nextToken =:: token =:: consumed
     program [] .parseOffset consumed + program .parseOffset=
@@ -416,9 +420,7 @@ proc( string : line Program ptr.mut : program -> bool ) =>: parseLine
       program [] .openBlocks .length 0:iSize != if
     true return
   end
-  program [] .tokens for printToken end
-  ## TODO? type-check before interpreting
-  program [] .tokens list.asSlice program evaluateBlock
+  0 program .parseOffset=
   false return
 end
 
@@ -769,13 +771,59 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
             end
             break
         end break
+      ImportLocal ImportLib case
+        importBuffer@ sb.wrapBuffer
+          token .ImportLocal ?? if
+            baseDir sb.appendStr '/' sb.appendC
+            token .ImportLocal sb.appendStr
+          else
+            "library imports are not supported" ..panic
+          end
+          $ sb.asStr ".concat":s string.endsWith ! if
+            ## TODO? don't append .concat if file has different extension
+            ".concat":s sb.appendStr
+          end
+        sb.asStr =:: filePath
+        filePath program importFile
+        break
       EOF case return
     end
   finally ip 1 + ip= end
 end
+proc( string : path Program ptr.mut : program -> ) =>: importFile
+  ## TODO prevent import loops
+  ## TODO file-dependent scoping
+  program .tokens [] .length =:: tokenOffset
+  ## TODO handle IO errors
+  path io.OPEN_READ io.fopenStr ..drop =:: srcFile
+  4096 sb.create
+    srcFile sb.appendFile ..drop
+    $ sb.asStr program parseLine if
+      "error handling" ..panic
+    end
+  sb.free ..drop
+  srcFile io.fclose ..drop
+  program [] .tokens list.asSlice tokenOffset slice.tail program evaluateBlock
+end
+
+## TODO? move to library
+proc.c( char8 _ ptr -> char8 _ ptr ) : extern: getenv
+proc.c( char8 _ ptr -> i64 ) : extern: strlen
+proc( -> string ) =>: currentDir
+  "PWD" getenv =:: charPtr
+  charPtr iPtr cast! 0:iPtr == if
+    ## TODO? error message/ fallback directory
+    string.empty return
+  end
+  charPtr $ strlen  iSize cast.u string new
+end
 
 5:iSize =:: MAX_ELTS
+char8 1024 array : mut: importBuffer
+string : mut: baseDir
 proc( -> ) =>: main
+  ## TODO allow passing root-file as argument
+  currentDir baseDir=
   ## Program
     4096 mixedArena.create
     string.hash@ string.eq@ 1024 Identifier map.create
@@ -799,6 +847,9 @@ proc( -> ) =>: main
       lineBuffer '\n' sb.appendC readLine lineBuffer=
     end
     lineBuffer sb.clear lineBuffer=
+    program .tokens for printToken end
+    ## TODO? type-check before interpreting
+    program .tokens list.asSlice program@ evaluateBlock
     program .tokens list.clear program@ .tokens=
     program .stack .length MAX_ELTS u> if
       " ...":s io.print
