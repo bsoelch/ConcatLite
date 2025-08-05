@@ -25,6 +25,7 @@ struct(
 union(
   _ : None
   _ : Bool
+  _ : Char8
   _ : I8
   _ : I16
   _ : I32
@@ -42,6 +43,13 @@ union(
 ) =:: export: Type
 type : export: Procedure
 type : export: Value
+struct(
+  char8 _ ptr : data
+  i32 : length
+) =:: export: StringLiteral
+proc( StringLiteral : lit -> string ) =>: export: asString
+  lit .data lit .length string.create
+end
 union(
   bool : Bool
   i64 : Int
@@ -49,6 +57,7 @@ union(
   Type : Type
   Procedure ptr : Procedure
   Value rcSlice : Composite
+  StringLiteral : String
 ) =:: export: Value
 struct(
   Value : value
@@ -75,9 +84,9 @@ proc( Value : val -> ) =>: export: freeValue
 end
 proc( Type : tp -> Value ) =>: export: defaultValue
   tp switch
-    ## TODO? map non-type to special wildcard value
+    ## TODO? map none-type to special wildcard value
     None Bool case false Value .Bool return
-    I8 I16 I32 I64 case 0 Value .Int return
+    Char8 I8 I16 I32 I64 case 0 Value .Int return
     F16 F32 F64 case 0.0 Value .Float return
     Type case Type .None Value .Type return
     Tuple case
@@ -105,6 +114,28 @@ proc( Type : tp -> Value ) =>: export: defaultValue
     Pointer MutablePointer case "unimplemented: pointer values" ..panic
   end
 end
+proc( StringLiteral -> ) =>: printStringLiteral
+  asString string.chars for =:: c
+    c '\x20' < or c '\x7f' >= if ## non-printable ASCII-characters + hex-codes for multi-char characters
+      c i32 cast.u =:: charId
+      c switch
+        '\n' case "\\n":s io.print continue
+        '\t' case "\\t":s io.print continue
+        '\r' case "\\r":s io.print continue
+        default
+          "\\x":s io.print
+          charId 0xff &
+            $ 0x10 < if '0' io.printC end
+          io.printX
+          continue
+      end
+    end
+    c '\\' == c '\'' == | c '\"' == | if
+      '\\' io.printC
+    end
+    c io.printC
+  end
+end
 proc( ArraySize : size -> ) =>: printArraySize
   size switch
     Fixed case size .Fixed io.print return
@@ -115,6 +146,7 @@ proc( Type : t -> ) =>: export: printType
   t switch
     None case "?":s io.print break
     Bool case "bool":s io.print break
+    Char8 case "char8":s io.print break
     I8 case "i8":s io.print break
     I16 case "i16":s io.print break
     I32 case "i32":s io.print break
@@ -166,6 +198,9 @@ proc( Value : val -> ) =>: export: printValue
       val .Composite [] .length for =:: i
         ' ' io.printC val .Composite i rcSlice.get printValue
       end " }":s io.print
+      break
+    String case
+      '"' io.printC val .String printStringLiteral '"' io.printC break
   end
 end
 proc( TypedValue : val -> ) =>: export: printTypedValue
@@ -359,6 +394,15 @@ struct(
   i32 : parseOffset
   bool : running
 ) =:: export: Program
+proc( Type : base i64 : size Program ptr.mut : program -> ArrayType ptr ) =>: export: newArrayType
+  program [] .memory
+    ## ArrayType
+      base
+      size ArraySize .Fixed
+    ArrayType new mixedArena.copyValue =:: arrayBody
+  program .memory=
+  arrayBody
+end
 proc( iSize : argCount Program ptr : program -> bool ) =>: export: checkStack
   argCount program .stack [] .length program [] .stackOffset - u>
 end

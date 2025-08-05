@@ -29,10 +29,10 @@ run:
 - [x] Array element access
 - [x] Initializer Literals
 - [x] Comments
+- [x] String Literals
 - [ ] Support for other number types
 - [ ] Unions
 - [ ] Enums
-- [ ] String Literals
 - [ ] ? primitive arrays
 - [ ] dynamic array/pointer indexing
 - [ ] pointer element access

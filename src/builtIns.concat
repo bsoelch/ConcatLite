@@ -146,20 +146,15 @@ proc( BuiltIn : builtIn Program ptr.mut : program -> )  =>: export: evaluateBuil
         list.pop asI32 i64 cast.u =:: size
         list.pop asType =:: base
       program .stack=
-      program [] .memory
-        ## ArrayType
-          base
-          size ArraySize .Fixed
-        ArrayType new mixedArena.copyValue
-          builtIn .ARRAYTYPE ?? if
-            Type .Array
-          else builtIn .PTRTYPE ?? _if
-            Type .Pointer
-          else builtIn .PTRMUTTYPE ?? _if
-            Type .MutablePointer
-          else ..unreachable end
-        =:: arrayType
-      program .memory=
+      base size program newArrayType
+        builtIn .ARRAYTYPE ?? if
+          Type .Array
+        else builtIn .PTRTYPE ?? _if
+          Type .Pointer
+        else builtIn .PTRMUTTYPE ?? _if
+          Type .MutablePointer
+        else ..unreachable end
+      =:: arrayType
       program [] .stack
         arrayType Value .Type Type .Type TypedValue new list.push
       program .stack=
