@@ -654,11 +654,25 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
           list.pop =:: composite
         program .stack=
         ## TODO check type
-        composite .value .Composite ?? ! or composite .valType .None ?? ! and
+        composite .valType .None ?? ! and
             composite .valType .Tuple ?? ! and composite .valType .Array ?? ! if
           "error handling" ..panic
         end
         setValue if token .SetElement else token .GetElement end =:: index
+        composite .value .String ?? if
+          setValue if "error handling" ..panic end
+          index composite .value .String .length i64 cast.u u>= if
+            "error handling" ..panic
+          end
+          program [] .stack
+            composite .value .String asString index string.charAt i64 cast.u Value .Int
+            Type .Char8 TypedValue new list.append
+          program .stack=
+          return
+        end
+        composite .value .Composite ?? ! if
+          "error handling" ..panic
+        end
         index composite .value .Composite [] .length i64 cast.u u>= if
           "error handling" ..panic
         end
