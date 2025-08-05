@@ -111,34 +111,44 @@ proc( CompositeBlockType : compType Program ptr.mut : program -> ) =>: startComp
     CompositeBlockInfo new BlockInfo .compositeBlock list.push
   program .openBlocks=
 end
-proc( string : mut: chars Program ptr.mut : program -> StringLiteral ) =>: parseStringLiteral
+proc( string : mut: chars bool : rawString Program ptr.mut : program -> StringLiteral ) =>: parseStringLiteral
   chars 0:iSize string.charAt chars $ .length 1:iSize - string.charAt == "literal starts and ends with same char" assert
   chars 1:iSize $1 .length 2:iSize - string.getSlice chars=
   program [] .memory ## TODO? reduce wasted space
     chars .length i32 cast.u char8 mixedArena.allocSlice =:: stringData
   program .memory=
   stringData .data stringData .length sb.fromBuffer
-    0:iSize while $ chars .length u< do =:: mut: i
-      chars i string.charAt =:: c
-      c '\\' != if
+    rawString if
+      0:iSize while $ chars .length u< do =:: mut: i
+        chars i string.charAt =:: c
         c sb.appendC
-        continue
-      end
-      i 1:iSize + i=
-      chars i string.charAt =:: c1
-      c1 switch
-        'x' 'u' 'U' case "unimplemented" ..panic
-        'n' case '\n' sb.appendC break
-        't' case '\t' sb.appendC break
-        'b' case '\b' sb.appendC break
-        'r' case '\r' sb.appendC break
-        'f' case '\f' sb.appendC break
-        'v' case '\v' sb.appendC break
-        default c1 sb.appendC break
-      end
-    finally
-      i 1:iSize +
-    end ..drop
+        c '`' == if ## ignore character after '`' within string
+          i 1:iSize + i=
+        end
+      finally i 1:iSize + end ..drop
+    else
+      0:iSize while $ chars .length u< do =:: mut: i
+        chars i string.charAt =:: c
+        c '\\' != if
+          c sb.appendC
+          continue
+        end
+        i 1:iSize + i=
+        chars i string.charAt =:: c1
+        c1 switch
+          'x' 'u' 'U' case "unimplemented" ..panic
+          'n' case '\n' sb.appendC break
+          't' case '\t' sb.appendC break
+          'b' case '\b' sb.appendC break
+          'r' case '\r' sb.appendC break
+          'f' case '\f' sb.appendC break
+          'v' case '\v' sb.appendC break
+          default c1 sb.appendC break
+        end
+      finally
+        i 1:iSize +
+      end ..drop
+    end
   =:: stringValue
   stringValue .data stringValue .length i32 cast.u StringLiteral new
 end
@@ -148,13 +158,14 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
     i0 Token .EOF return
   end
   i0 word .length i32 cast.u +
-  word 0 string.charAt '"' == if
-    word program parseStringLiteral =:: literal
+  word 0 string.charAt =:: c0
+  c0 '"' == or c0 '`' == if
+    word c0 '`' == program parseStringLiteral =:: literal
     literal Value .String
       Type .Char8 literal .length i64 cast.u program newArrayType Type .Pointer
     TypedValue new Token .Constant return
-  else word 0 string.charAt '\'' == _if
-    word program parseStringLiteral =:: literal
+  else c0 '\'' == _if
+    word false program parseStringLiteral =:: literal
     literal .length 1 == if
       literal asString 0 string.charAt i64 cast.u Value .Int
         Type .Char8
@@ -163,10 +174,8 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
     literal Value .String
       Type .Char8 literal .length i64 cast.u program newArrayType Type .Array
     TypedValue new Token .Constant return
-  else word 0 string.charAt '`' == _if
-    "unimplemented: raw string literals" ..panic
   end
-  word 0 string.charAt char.isDigit if
+  c0 char.isDigit if
     word 0 number.tryParseInt switch
       NONE case Value .Int Type .None TypedValue new Token .Constant return
       UNSIGNED case ## TODO warning
@@ -201,7 +210,7 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
     1 StackOp .Rotate Token .StackOp return
   else word "..drop":s string.eq _if
     1 StackOp .Drop Token .StackOp return
-  else word .length 1:iSize u> and word 0 string.charAt '.' == _if
+  else word .length 1:iSize u> and c0 '.' == _if
     word $ .length 1:iSize - string.charAt '=' == =:: setValue
     word 1 string.tail
       setValue if $ .length 1:iSize - string.head end
