@@ -30,9 +30,12 @@ run:
 - [x] Initializer Literals
 - [x] Comments
 - [x] String Literals
+- [x] Local Imports
+- [x] Union Types
+- [ ] Enum Types
+- [ ] Union Value
+- [ ] Enum Values
 - [ ] Support for other number types
-- [ ] Unions
-- [ ] Enums
 - [ ] ? primitive arrays
 - [ ] dynamic array/pointer indexing
 - [ ] pointer element access
@@ -40,7 +43,7 @@ run:
 - [ ] Type Checking
 - [ ] Named procedure arguments
 - [ ] Named tuple elements
-- [ ] Imports
+- [ ] Library Imports
 - [ ] Namespaces
 - [ ] Switch-Case
 - [ ] Procedure Overloads

@@ -236,7 +236,7 @@ proc( TypedValue : val -> i32 ) =>: export: asI32
   val .value .Int i32 cast
 end
 
-enum( IF ELSE WHILE DO  PROCEDURE TUPLE_TYPE PROC_TYPE TO_TYPE INITIALIZER ) =:: export: BlockType
+enum( IF ELSE WHILE DO  PROCEDURE TUPLE_TYPE UNION_TYPE PROC_TYPE TO_TYPE INITIALIZER ) =:: export: BlockType
 struct(
   i32 : target
   BlockType : blockType
@@ -250,6 +250,7 @@ proc( CodeBlock : block -> ) =>: export: printBlock
     PROCEDURE  case "procedure: ":s    io.print break
     PROC_TYPE  case "proc-type: ":s    io.print break
     TUPLE_TYPE case "tuple-type: ":s   io.print break
+    UNION_TYPE case "union-type: ":s   io.print break
     TO_TYPE    case "to-type: ":s      io.print break
     INITIALIZER case "initializer: ":s io.print break
   end
@@ -368,7 +369,7 @@ struct(
   i32 : doIndex
   ## TODO support break/continue
 ) =:: export: WhileBlockInfo
-enum( NONE PROC TUPLE INITIALIZER ) =:: export: CompositeBlockType
+enum( NONE PROC TUPLE UNION INITIALIZER ) =:: export: CompositeBlockType
 struct(
   i32 : blockStart
   i32 : toIndex

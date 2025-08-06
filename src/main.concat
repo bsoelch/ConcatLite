@@ -355,6 +355,11 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
   else word "proc(":s string.eq _if
     CompositeBlockType .PROC program startCompositeBlock
     -1 BlockType .PROC_TYPE CodeBlock new Token .Block return
+  else word "union(":s string.eq _if
+    CompositeBlockType .UNION program startCompositeBlock
+    -1 BlockType .UNION_TYPE CodeBlock new Token .Block return
+  else word "enum(":s string.eq _if
+    "unimplemented" ..panic ## TODO? directly parse names to enum
   else word "->":s string.eq _if
     program [] .openBlocks list.peek =:: procBlock?
     procBlock? .data .compositeBlock =:: procBlock
@@ -388,6 +393,8 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
     closed .compositeBlock .compType switch
       NONE TUPLE case
        0 BlockType .TUPLE_TYPE CodeBlock new Token .EndBlock return
+      UNION case
+       0 BlockType .UNION_TYPE CodeBlock new Token .EndBlock return
       PROC case
         closed .compositeBlock .toIndex =:: toIndex
         program [] .tokens .length i32 cast.u toIndex -
@@ -440,7 +447,7 @@ proc( Procedure ptr : procData Program ptr.mut : program -> ) =>: evaluateCall
   end
   oldOffset program resetStack
 end
-proc( Token slice : tokens bool : isProc Program ptr.mut : program -> Type ) =>: evaluateTypeBlock
+proc( Token slice : tokens BlockType : blockType Program ptr.mut : program -> Type ) =>: evaluateTypeBlock
   0:iSize program offsetStack =:: oldOffset
   program [] .stackOffset =:: baseOffset
   ## TODO? seperate interpreter mode for correct handling of named declarations
@@ -453,13 +460,19 @@ proc( Token slice : tokens bool : isProc Program ptr.mut : program -> Type ) =>:
       tupleElts0 .length i32 cast Type mixedArena.allocSlice =:: tupleElts
       0:iSize =:: mut: i
       tupleElts0 for .value .Type tupleElts i =[] i 1:iSize + i= end
-      isProc if
+      blockType .PROC_TYPE ?? if
         ## ProcedureType
           tupleElts argCount slice.head slice.freeze CompositeType new
           tupleElts argCount slice.tail slice.freeze CompositeType new
         ProcedureType new mixedArena.copyValue Type .Procedure
       else
-        tupleElts slice.freeze CompositeType new mixedArena.copyValue Type .Tuple
+        tupleElts slice.freeze CompositeType new mixedArena.copyValue
+        blockType .UNION_TYPE ?? if
+          Type .Union
+        else
+          blockType .TUPLE_TYPE ?? "unexpected block-type" assert
+          Type .Tuple
+        end
       end =:: resType
     program .memory=
     baseOffset list.setLength
@@ -525,14 +538,14 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
             end
             break
           ELSE case ip token .Block .target + ip= break
-          TUPLE_TYPE PROC_TYPE case
+          UNION_TYPE TUPLE_TYPE PROC_TYPE case
             ## TypedValue
               ## evaluateTypeBlock
                 tokens
                   ip 1 + iSize cast.u
                   token .Block .target iSize cast.u
                 slice.getSlice
-                token .Block .blockType .PROC_TYPE ??
+                token .Block .blockType
               program evaluateTypeBlock Value .Type
               Type .Type
             TypedValue new =:: newType
