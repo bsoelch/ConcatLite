@@ -269,6 +269,22 @@ overload: & IdModifier.and end
 overload: | IdModifier.or end
 overload: ? IdModifier.toBool end
 
+i32 =:: export: FileId
+namespace: FileId
+  -1:FileId =:: export: GLOBAL
+end
+struct(
+  string : name
+  FileId : fileId
+) =:: export: IdName
+namespace: IdName
+  proc( IdName : a IdName : b -> bool ) =>: export: eq
+    a .fileId b .fileId == and a .name b .name string.eq end
+  end
+  proc( IdName : a -> i32 ) =>: export: hash
+    a .fileId i32 cast.u 31 * a .name string.hash +
+  end
+end
 enum( DECLARE TYPED AUTO ) =:: export: InitType
 struct( string : name IdModifier : modifiers InitType : initType ) =:: export: InitInfo
 union(
@@ -394,7 +410,7 @@ union(
 ##  switch-label?
 struct(
   MixedArenaAllocator : memory
-  string Identifier hashMap : identifiers
+  IdName Identifier hashMap : identifiers
   TypedValue list : stack
   iSize : stackOffset
   ## parser state

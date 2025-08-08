@@ -153,6 +153,9 @@ proc( string : mut: chars bool : rawString Program ptr.mut : program -> StringLi
   =:: stringValue
   stringValue .data stringValue .length i32 cast.u StringLiteral new
 end
+proc( string : word Program ptr.mut : program -> string ) =>: asIdentifier
+  program .memory word copyString
+end
 proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
   next nextWord =:: word next= =:: i0
   word .length 0:iSize == if
@@ -194,15 +197,15 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
   word ":":s string.eq if
     next parseDeclaration =:: name =:: idFlags +
       name .length 0:iSize == if ..drop i0 Token .EOF return end
-    name idFlags InitType .DECLARE InitInfo new Token .Initialize return
+    name program asIdentifier idFlags InitType .DECLARE InitInfo new Token .Initialize return
   else word "=:":s string.eq _if
     next parseDeclaration =:: name =:: idFlags +
       name .length 0:iSize == if ..drop i0 Token .EOF return end
-    name idFlags InitType .TYPED InitInfo new Token .Initialize return
+    name program asIdentifier idFlags InitType .TYPED InitInfo new Token .Initialize return
   else word "=::":s string.eq _if
     next parseDeclaration =:: name =:: idFlags +
       name .length 0:iSize == if ..drop i0 Token .EOF return end
-    name idFlags InitType .AUTO InitInfo new Token .Initialize return
+    name program asIdentifier idFlags InitType .AUTO InitInfo new Token .Initialize return
   else word "$":s string.eq _if
     0 StackOp .Copy Token .StackOp return
   else word "$1":s string.eq _if
@@ -341,7 +344,7 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
           blockEnd return
         end
         program [] .tokens blockEnd list.append program .tokens=
-        closed .procedureBlock .procName
+        closed .procedureBlock .procName program asIdentifier
           closed .procedureBlock .idModifiers
         InitType .AUTO InitInfo new Token .Initialize return
       compositeBlock case "error handling" ..panic
@@ -408,9 +411,9 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
   end
   word .length 2:iSize u>= and word $ .length 1:iSize - string.charAt '=' == and
       word .length 2:iSize u> or "<>=!":s word 0 string.charAt string.contains ! if
-    program .memory word $ .length 1:iSize - string.head copyString Token .SetValue return
+    word $ .length 1:iSize - string.head program asIdentifier Token .SetValue return
   end
-  program .memory word copyString Token .Identifier
+  word program asIdentifier Token .Identifier
 end
 ## parse a single line returns true if line needs to be continued
 proc( string : line Program ptr.mut : program -> bool ) =>: parseLine
@@ -496,13 +499,16 @@ proc( Token slice : tokens Program ptr.mut : program -> Value ) =>: evaluateInit
   oldOffset program resetStack
   resVal Value .Composite return
 end
+proc( string : name Program ptr.mut : program -> Identifier ptr.mut optional ) =>: findName
+   program .identifiers name FileId.GLOBAL IdName new map.at
+end
 proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
   0:i32 =:: mut: ip
   while ip iSize cast.u tokens .length u< do
     tokens ip [] =:: token
     token switch
       Identifier case
-        program .identifiers token .Identifier map.get =:: idData?
+        token .Identifier program findName =:: idData?
         idData? optional.isEmpty if
           "Unknown identifier: \"":s io.print
           token .Identifier io.print
@@ -511,11 +517,11 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
         end
         idData? .data =:: idData
         ## TODO better way to distinguish procedures from procedure pointers
-        idData .value .value .Procedure ?? and idData .value .valType .Procedure ?? if
-          idData .value .value .Procedure program evaluateCall
+        idData .value .value [] .Procedure ?? and idData .value .valType [] .Procedure ?? if
+          idData .value .value [] .Procedure program evaluateCall
         else
           program [] .stack
-            idData .value useTypedValue list.append
+            idData [] .value useTypedValue list.append
           program .stack=
         end
         break
@@ -607,7 +613,7 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
         program [] .stack
           list.pop =:: value
         program .stack=
-        program .identifiers token .SetValue map.at =:: prevData?
+        token .SetValue program findName =:: prevData?
         prevData? optional.isEmpty or
             prevData? .data [] .modifiers IdModifier.MUTABLE & ? ! if
           "Error handling" ..panic
@@ -628,14 +634,15 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
           list.pop =:: value
         program .stack=
         ## TODO ensure value is typed ( replace int literal with i32 and float literal with f64 )
-        program .identifiers
-          token .Initialize .name
-          value token .Initialize .modifiers Identifier new
-        map.put =:: prevData?
-        prevData? optional.hasData if
-          program .identifiers token .Initialize .name prevData? .data map.put ..drop
+        token .Initialize .name program findName =:: oldName?
+        oldName? optional.hasData if
           "Error handling" ..panic
         end
+        FileId.GLOBAL =:: fileId
+        program .identifiers
+          token .Initialize .name fileId IdName new
+          value token .Initialize .modifiers Identifier new
+        map.put ..drop
         break
       New case
         1:iSize program checkStack if
@@ -839,7 +846,7 @@ proc( -> ) =>: main
   currentDir baseDir=
   ## Program
     4096 mixedArena.create
-    string.hash@ string.eq@ 1024 Identifier map.create
+    IdName.hash@ IdName.eq@ 1024 Identifier map.create
     128 TypedValue list.create
     0:iSize
     128 BlockInfo list.create
