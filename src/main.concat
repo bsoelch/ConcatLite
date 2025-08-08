@@ -17,8 +17,10 @@ proc( stringBuilder -> stringBuilder ) =>: readLine
   end
 end
 
-proc( MixedArenaAllocator ptr.mut : alloc string : str -> string ) =>: copyString
-  alloc [] str string.chars mixedArena.copySlice slice.freeze string.fromChars >$ alloc =[]
+proc( string : word Program ptr.mut : program -> string ) =>: copyName
+  program [] .memory
+    word string.chars mixedArena.copySlice slice.freeze string.fromChars >$
+  program .memory=
 end
 
 proc( string : mut: next -> i32 string string ) =>: nextWord
@@ -100,6 +102,9 @@ proc( string : mut: expr -> i32 IdModifier string ) =>: parseDeclaration
     modif "mut":s string.eq if
       modifiers IdModifier.MUTABLE | modifiers=
     end
+    modif "export":s string.eq if
+      modifiers IdModifier.EXPORT | modifiers=
+    end
   end
   i modifiers name
 end
@@ -153,9 +158,6 @@ proc( string : mut: chars bool : rawString Program ptr.mut : program -> StringLi
   =:: stringValue
   stringValue .data stringValue .length i32 cast.u StringLiteral new
 end
-proc( string : word Program ptr.mut : program -> string ) =>: asIdentifier
-  program .memory word copyString
-end
 proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
   next nextWord =:: word next= =:: i0
   word .length 0:iSize == if
@@ -197,15 +199,15 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
   word ":":s string.eq if
     next parseDeclaration =:: name =:: idFlags +
       name .length 0:iSize == if ..drop i0 Token .EOF return end
-    name program asIdentifier idFlags InitType .DECLARE InitInfo new Token .Initialize return
+    name program copyName idFlags InitType .DECLARE InitInfo new Token .Initialize return
   else word "=:":s string.eq _if
     next parseDeclaration =:: name =:: idFlags +
       name .length 0:iSize == if ..drop i0 Token .EOF return end
-    name program asIdentifier idFlags InitType .TYPED InitInfo new Token .Initialize return
+    name program copyName idFlags InitType .TYPED InitInfo new Token .Initialize return
   else word "=::":s string.eq _if
     next parseDeclaration =:: name =:: idFlags +
       name .length 0:iSize == if ..drop i0 Token .EOF return end
-    name program asIdentifier idFlags InitType .AUTO InitInfo new Token .Initialize return
+    name program copyName idFlags InitType .AUTO InitInfo new Token .Initialize return
   else word "$":s string.eq _if
     0 StackOp .Copy Token .StackOp return
   else word "$1":s string.eq _if
@@ -229,9 +231,9 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
   else word "import":s string.eq _if
     next nextWord =:: name next= + name .length i32 cast.u +
     name 0 string.charAt '"' == if
-      name 1:iSize $1 .length 2:iSize - string.getSlice Token .ImportLocal return
+      name 1:iSize $1 .length 2:iSize - string.getSlice program copyName Token .ImportLocal return
     else
-      name Token .ImportLib return
+      name program copyName Token .ImportLib return
     end
   else word "if":s string.eq _if
     program [] .openBlocks
@@ -344,7 +346,7 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
           blockEnd return
         end
         program [] .tokens blockEnd list.append program .tokens=
-        closed .procedureBlock .procName program asIdentifier
+        closed .procedureBlock .procName program copyName
           closed .procedureBlock .idModifiers
         InitType .AUTO InitInfo new Token .Initialize return
       compositeBlock case "error handling" ..panic
@@ -411,9 +413,9 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
   end
   word .length 2:iSize u>= and word $ .length 1:iSize - string.charAt '=' == and
       word .length 2:iSize u> or "<>=!":s word 0 string.charAt string.contains ! if
-    word $ .length 1:iSize - string.head program asIdentifier Token .SetValue return
+    word $ .length 1:iSize - string.head program copyName Token .SetValue return
   end
-  word program asIdentifier Token .Identifier
+  word program copyName Token .Identifier
 end
 ## parse a single line returns true if line needs to be continued
 proc( string : line Program ptr.mut : program -> bool ) =>: parseLine
@@ -500,6 +502,9 @@ proc( Token slice : tokens Program ptr.mut : program -> Value ) =>: evaluateInit
   resVal Value .Composite return
 end
 proc( string : name Program ptr.mut : program -> Identifier ptr.mut optional ) =>: findName
+   program .identifiers name program [] .currentFile IdName new map.at
+   $ optional.hasData if return end
+   ..drop
    program .identifiers name FileId.GLOBAL IdName new map.at
 end
 proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
@@ -638,7 +643,11 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
         oldName? optional.hasData if
           "Error handling" ..panic
         end
-        FileId.GLOBAL =:: fileId
+        token .Initialize .modifiers IdModifier.EXPORT & ? if
+          FileId.GLOBAL
+        else
+          program [] .currentFile
+        end =:: fileId
         program .identifiers
           token .Initialize .name fileId IdName new
           value token .Initialize .modifiers Identifier new
@@ -811,8 +820,15 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
   finally ip 1 + ip= end
 end
 proc( string : path Program ptr.mut : program -> ) =>: importFile
-  ## TODO prevent import loops
-  ## TODO file-dependent scoping
+  program [] .imports for =:: oldPath
+    oldPath path string.eq if return end ## already imported
+  end
+  path program copyName =:: fixedPath
+  program [] .currentFile =:: oldFileId
+  program [] .imports
+    $ .length FileId cast program .currentFile=
+    fixedPath list.append
+  program .imports=
   program .tokens [] .length =:: tokenOffset
   ## TODO handle IO errors
   path io.OPEN_READ io.fopenStr ..drop =:: srcFile
@@ -824,6 +840,7 @@ proc( string : path Program ptr.mut : program -> ) =>: importFile
   sb.free ..drop
   srcFile io.fclose ..drop
   program [] .tokens list.asSlice tokenOffset slice.tail program evaluateBlock
+  oldFileId program .currentFile=
 end
 
 ## TODO? move to library
@@ -849,12 +866,19 @@ proc( -> ) =>: main
     IdName.hash@ IdName.eq@ 1024 Identifier map.create
     128 TypedValue list.create
     0:iSize
+    16 string list.create
+    FileId.GLOBAL
     128 BlockInfo list.create
     128 Token list.create
     0:i32
     true
   Program new =:: mut: program
   program@ initBuiltIns
+  ## create fake file with empty name for REPL code
+  program .imports
+    $ .length FileId cast program@ .currentFile=
+    string.empty list.append
+  program@ .imports=
   256 sb.create =:: mut: lineBuffer
   while program .running do
     " >> ":s io.print
@@ -884,4 +908,5 @@ proc( -> ) =>: main
     '\n' io.print
   end
   lineBuffer sb.free ..drop
+  ## TODO! free program
 end

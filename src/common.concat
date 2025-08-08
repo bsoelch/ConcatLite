@@ -261,6 +261,7 @@ namespace: IdModifier
   0:IdModifier =:: export: NONE
   1:IdModifier =:: export: MUTABLE
   2:IdModifier =:: export: BUILTIN
+  4:IdModifier =:: export: EXPORT
   ( IdModifier IdModifier -> IdModifier ) : alias: export: or i16.or
   ( IdModifier IdModifier -> IdModifier ) : alias: export: and i16.and
   ( IdModifier -> bool ) : alias: export: toBool i16.toBool
@@ -413,6 +414,8 @@ struct(
   IdName Identifier hashMap : identifiers
   TypedValue list : stack
   iSize : stackOffset
+  string list : imports
+  FileId : currentFile
   ## parser state
   BlockInfo list : openBlocks
   Token list : tokens
