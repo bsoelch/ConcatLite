@@ -512,10 +512,27 @@ proc( Token slice : tokens Program ptr.mut : program -> Value ) =>: evaluateInit
   resVal Value .Composite return
 end
 proc( string : name Program ptr.mut : program -> Identifier ptr.mut optional ) =>: findName
-   program .identifiers name program [] .currentFile IdName new map.at
-   $ optional.hasData if return end
-   ..drop
-   program .identifiers name FileId.GLOBAL IdName new map.at
+   program [] .currentNamespace sb.asStr =:: mut: prefix
+   program [] .nameBuffer
+     sb.clear
+     prefix sb.appendStr
+     $ .length 0:iSize != if '.' sb.appendC end
+     name sb.appendStr
+   program .nameBuffer=
+   while
+     program [] .nameBuffer sb.asStr =:: fullName
+     program .identifiers fullName program [] .currentFile IdName new map.at
+     $ optional.hasData if return end ..drop
+     program .identifiers fullName FileId.GLOBAL IdName new map.at
+     $ optional.hasData if return end ..drop
+   prefix .length 0:iSize != do
+     prefix '.' string.splitLast prefix= =:: tail
+     program [] .nameBuffer
+       $ .length tail .length name .length + 1:iSize + - sb.setLength ## remove <tail>.<name> fromBuffer
+       name sb.appendStr
+     program .nameBuffer=
+   end
+   Identifier ptr.mut optional.empty
 end
 proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
   0:i32 =:: mut: ip
@@ -527,8 +544,10 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
         idData? optional.isEmpty if
           "Unknown identifier: \"":s io.print
           token .Identifier io.print
+          "\" in namespace \"":s io.print
+          program [] .currentNamespace sb.asStr io.print
           "\"":s io.println
-          return
+          break
         end
         idData? .data =:: idData
         ## TODO better way to distinguish procedures from procedure pointers
@@ -650,6 +669,7 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
         program .stack=
         ## TODO ensure value is typed ( replace int literal with i32 and float literal with f64 )
         token .Initialize .name program findName =:: oldName?
+        ## TODO handle shadowing
         oldName? optional.hasData if
           "Error handling" ..panic
         end
@@ -658,8 +678,18 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
         else
           program [] .currentFile
         end =:: fileId
+        ## add current namespace before name
+        program [] .currentNamespace
+          $ .length =:: oldLength
+          oldLength 0:iSize != if '.' sb.appendC end
+          token .Initialize .name sb.appendStr
+        program .currentNamespace=
+        program [] .currentNamespace sb.asStr program copyName =:: fullName
+        program [] .currentNamespace
+          oldLength sb.setLength
+        program .currentNamespace=
         program .identifiers
-          token .Initialize .name fileId IdName new
+          fullName fileId IdName new
           value token .Initialize .modifiers Identifier new
         map.put ..drop
         break
@@ -718,7 +748,7 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
             composite .value .String asString index string.charAt i64 cast.u Value .Int
             Type .Char8 TypedValue new list.append
           program .stack=
-          return
+          break
         end
         composite .value .Composite ?? ! if
           "error handling" ..panic
@@ -825,7 +855,21 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
         sb.asStr =:: filePath
         filePath program importFile
         break
-      BeginNamespace EndNamespace case break
+      BeginNamespace case
+        program [] .currentNamespace
+          $ .length 0:iSize != if '.' sb.appendC end
+          token .BeginNamespace sb.appendStr
+        program .currentNamespace=
+        break
+      EndNamespace case
+        program [] .currentNamespace
+          $ sb.asStr token .EndNamespace string.endsWith "closed namespace matches opened namespace" assert
+          $ .length token .EndNamespace .length - sb.setLength
+          $ .length 0:iSize != if
+            sb.pop '.' == "namespace-sperator" assert
+          end
+        program .currentNamespace=
+        break
       EOF case return
     end
   finally ip 1 + ip= end
@@ -841,6 +885,8 @@ proc( string : path Program ptr.mut : program -> ) =>: importFile
     fixedPath list.append
   program .imports=
   program .tokens [] .length =:: tokenOffset
+  program [] .currentNamespace =:: oldNamespace
+  128 sb.create program .currentNamespace= ## TODO? is there a way to avoid allocating a seperate buffer for each file
   ## TODO handle IO errors
   path io.OPEN_READ io.fopenStr ..drop =:: srcFile
   4096 sb.create
@@ -852,6 +898,8 @@ proc( string : path Program ptr.mut : program -> ) =>: importFile
   srcFile io.fclose ..drop
   program [] .tokens list.asSlice tokenOffset slice.tail program evaluateBlock
   oldFileId program .currentFile=
+  program [] .currentNamespace sb.free ..drop
+  oldNamespace program .currentNamespace=
 end
 
 ## TODO? move to library
@@ -880,6 +928,8 @@ proc( -> ) =>: main
     16 string list.create
     FileId.GLOBAL
     128 BlockInfo list.create
+    0 sb.create
+    0 sb.create
     128 Token list.create
     0:i32
     true

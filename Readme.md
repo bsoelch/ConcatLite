@@ -32,6 +32,7 @@ run:
 - [x] String Literals
 - [x] Local Imports
 - [x] Union Types
+- [x] Namespaces
 - [ ] Enum Types
 - [ ] Union Value
 - [ ] Enum Values
@@ -44,7 +45,7 @@ run:
 - [ ] Named procedure arguments
 - [ ] Named tuple elements
 - [ ] Library Imports
-- [ ] Namespaces
+- [ ] Scopes
 - [ ] Switch-Case
 - [ ] Procedure Overloads
 - [ ] For loops

@@ -431,6 +431,8 @@ struct(
   FileId : currentFile
   ## parser state
   BlockInfo list : openBlocks
+  stringBuilder : currentNamespace
+  stringBuilder : nameBuffer
   Token list : tokens
   i32 : parseOffset
   bool : running
