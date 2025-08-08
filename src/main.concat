@@ -349,6 +349,8 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
         closed .procedureBlock .procName program copyName
           closed .procedureBlock .idModifiers
         InitType .AUTO InitInfo new Token .Initialize return
+      namespace case
+        closed .namespace Token .EndNamespace return
       compositeBlock case "error handling" ..panic
     end
   else word "(":s string.eq _if
@@ -410,6 +412,14 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
        0 BlockType .INITIALIZER CodeBlock new Token .EndBlock return
     end
     ..unreachable
+  else word "namespace:":s string.eq _if
+    next parseDeclaration =:: mut: name =:: idFlags +
+    name .length 0:iSize == if ..drop i0 Token .EOF return end
+    name program copyName name=
+    program [] .openBlocks
+      name BlockInfo .namespace list.append
+    program .openBlocks=
+    name Token .BeginNamespace return
   end
   word .length 2:iSize u>= and word $ .length 1:iSize - string.charAt '=' == and
       word .length 2:iSize u> or "<>=!":s word 0 string.charAt string.contains ! if
@@ -815,6 +825,7 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
         sb.asStr =:: filePath
         filePath program importFile
         break
+      BeginNamespace EndNamespace case break
       EOF case return
     end
   finally ip 1 + ip= end

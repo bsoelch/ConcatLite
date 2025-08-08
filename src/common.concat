@@ -306,6 +306,8 @@ union(
   CodeBlock : EndBlock
   StackOp : StackOp
   _ : New
+  string : BeginNamespace
+  string : EndNamespace
   _ : EOF
 ) =:: export: Token
 proc( Token : token -> ) =>: export: printToken
@@ -359,6 +361,16 @@ proc( Token : token -> ) =>: export: printToken
       end io.println
       break
     New case "New":s io.println break
+    BeginNamespace case
+      "Namespace: \"":s io.print
+      token .BeginNamespace io.print
+      "\"":s io.println
+      break
+    EndNamespace case
+      "End namespace: \"":s io.print
+      token .EndNamespace io.print
+      "\"":s io.println
+      break
     EOF case "EOF":s io.println break
   end
 end
@@ -402,6 +414,7 @@ union(
   WhileBlockInfo : whileBlock
   CompositeBlockInfo : compositeBlock
   ProcedureBlockInfo : procedureBlock
+  string : namespace
 ) =:: export: BlockInfo
 ## "interpreter mode" ( set-reset functionality )
 ##  code
