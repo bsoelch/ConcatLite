@@ -181,7 +181,8 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
       Type .Char8 literal .length i64 cast.u ArraySize .Fixed program newArrayType Type .Array
     TypedValue new Token .Constant return
   end
-  c0 char.isDigit if
+  c0 char.isDigit or
+      word .length 2:iSize u>= and c0 '-' == c0 '+' == | and word 1 string.charAt char.isDigit if
     word 0 number.tryParseInt switch
       NONE case Value .Int Type .None TypedValue new Token .Constant return
       UNSIGNED case ## TODO warning
