@@ -461,13 +461,18 @@ union(
   ProcedureBlockInfo : procedureBlock
   string : namespace
 ) =:: export: BlockInfo
-enum( STOPPED RUN TYPE_BLOCK ) =:: export: InterpreterMode
+struct(
+  string : name
+  IdModifier : idModifiers
+) =:: export: Label
+union( _ : None Label : Label ) =:: export: ElementLabel
+enum( STOPPED RUN TYPE_BLOCK INITIALIZER ) =:: export: InterpreterMode
 struct(
   MixedArenaAllocator : memory
   IdName Identifier hashMap : identifiers
   TypedValue list : stack
   iSize : stackOffset
-  string list : nameStack
+  ElementLabel list : nameStack
   iSize : nameStackOffset
   string list : imports
   FileId : currentFile
@@ -488,10 +493,18 @@ proc( Type : base ArraySize : size Program ptr.mut : program -> ArrayType ptr ) 
   program .memory=
   arrayBody
 end
+proc( Program ptr : program -> iSize ) =>: export: stackSize
+  program .stack [] .length program [] .stackOffset u>= "valid stack offset" assert
+  program .stack [] .length program [] .stackOffset -
+end
+proc( Program ptr : program -> iSize ) =>: export: nameStackSize
+  program .nameStack [] .length program [] .nameStackOffset u>= "valid name-stack offset" assert
+  program .nameStack [] .length program [] .nameStackOffset -
+end
 proc( iSize : argCount Program ptr : program -> bool ) =>: export: checkStack
-  program .nameStack [] .length program [] .nameStackOffset - =:: nameStackLength
-  program .stack [] .length program [] .stackOffset - =:: stackLength
-  nameStackLength stackLength u<= "name stack .length <= stack .length" assert
+  program nameStackSize =:: nameStackLength
+  program stackSize =:: stackLength
+  nameStackLength stackLength u<= "nameStack .length <= stack .length" assert
   argCount stackLength nameStackLength - u>
 end
 proc( iSize : argCount Program ptr.mut : program -> iSize iSize ) =>: export: offsetStack
