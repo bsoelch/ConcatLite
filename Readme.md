@@ -33,12 +33,12 @@ run:
 - [x] Local Imports
 - [x] Union Types
 - [x] Namespaces
+- [x] dynamic array/pointer indexing
 - [ ] Enum Types
 - [ ] Union Value
 - [ ] Enum Values
 - [ ] Support for other number types
 - [ ] ? primitive arrays
-- [ ] dynamic array/pointer indexing
 - [ ] pointer element access
 - [ ] unsized pointers
 - [ ] Type Checking

@@ -234,6 +234,12 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
     ArrayKind .POINTER Token .NewArrayType return
   else word "ptr.mut":s string.eq _if
     ArrayKind .MUTABLE_POINTER Token .NewArrayType return
+  else word "[]":s string.eq _if
+    ArrayOperator .GET Token .ArrayOperator return
+  else word "=[]":s string.eq _if
+    ArrayOperator .SET Token .ArrayOperator return
+  else word "@[]":s string.eq _if
+    ArrayOperator .AT Token .ArrayOperator return
   else word "import":s string.eq _if
     next nextWord =:: name next= + name .length i32 cast.u +
     name 0 string.charAt '"' == if
@@ -782,17 +788,11 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
           list.pop =:: value
         program .stack=
         ## TODO? check element type
-        composite .value .Composite [] .RC 1 == if ## only reference -> modify in plane
+        composite .value .Composite [] .RC 1 == if ## only reference -> modify in place
           composite .value .Composite
         else
-          composite .value .Composite [] .length Value rcSlice.create =:: copy
-          composite .value .Composite [] .length i64 cast.u for =:: i
-            i index == if continue end
-            composite .value .Composite i iSize cast.u rcSlice.get
-            copy i iSize cast.u rcSlice.set
-          end
+          composite .value index iSize cast.u cloneValue .Composite
           composite .value .Composite rcSlice.free
-          copy
         end =:: newElements
         value .value newElements index iSize cast.u rcSlice.set
         program [] .stack
@@ -886,6 +886,94 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
             end
           Value .Type Type .Type TypedValue new list.append
         program .stack=
+        break
+      ArrayOperator case ## TODO make built-in functions once there is support for generics and overloading
+        1:iSize program checkStack if
+          "stack underflow" ..panic
+        end
+        program [] .stack
+          list.pop =:: arg0
+        program .stack=
+        arg0 .value .Int ?? if
+          program [] .stack
+            list.pop =:: target
+          program .stack=
+          target
+          arg0 .value .Int
+        else
+          arg0
+          0
+        end =:: index =:: target
+        target .valType .Pointer ?? or target .valType .MutablePointer ?? end =:: isPointer
+        target .valType .MutablePointer ?? =:: isMutablePointer
+        target .valType .Array ?? if
+          target .valType .Array [] .baseType
+        else target .valType .Pointer ?? _if
+          target .valType .Pointer [] .baseType
+        else isMutablePointer _if
+          target .valType .MutablePointer [] .baseType
+        else target .valType .None ?? _if
+          Type .None
+        else
+          "error handling" ..panic
+        end =:: baseType
+        token .ArrayOperator .SET ?? and target .valType .Pointer ?? if
+          "error handling" ..panic ## cannot write to immutable pointer
+        end
+        token .ArrayOperator .AT ?? and isPointer ! if
+          "error handling" ..panic ## cannot get pointer to array element
+        end
+        token .ArrayOperator .AT ?? and isMutablePointer if
+          "unimplemented" ..panic ## mutable at (need notion of element pointer)
+        end
+        target .value .Composite ?? if
+          target .value .Composite [] .length
+        else target .value .String ?? _if
+           target .value .String .length iSize cast.u
+        else
+          "error handling" ..panic
+        end =:: size
+        index iSize cast.u size u< "index in range" assert
+        ## TODO add support for mutable element pointers
+        token .ArrayOperator .SET ?? ! if
+          ## TODO! how should reference count behave for pointers to elements of dynamically allocated values
+          program [] .stack
+            target .value .String ?? if
+              target .value .String asString index string.charAt i64 cast.u Value .Int
+            else
+              target .value .Composite index iSize cast.u rcSlice.get useValue
+            end
+              baseType
+              token .ArrayOperator .AT ?? if
+                1 ArraySize .Fixed program newArrayType
+                isMutablePointer if
+                  Type .MutablePointer
+                else
+                  Type .Pointer
+                end
+              end
+            TypedValue new list.append
+          program .stack=
+          target .value freeValue ## TODO should parent element of dynamic pointer be freed
+          return
+        end
+        ## set element
+        target .value .String ?? ! and isPointer or target .value .Composite [] .RC 1 == if ##  modify in place
+          target .value .Composite
+        else
+          target .value index iSize cast.u cloneValue .Composite
+          target .value freeValue
+        end =:: newElements
+        program [] .stack
+          list.pop =:: newValue
+        program .stack=
+        ## TODO check type
+        newValue .value newElements index iSize cast.u rcSlice.set
+        isPointer ! if
+          program [] .stack
+            newElements Value .Composite target .valType TypedValue new list.append
+          program .stack=
+        end
         break
       ImportLocal ImportLib case
         importBuffer@ sb.wrapBuffer

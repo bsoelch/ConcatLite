@@ -82,6 +82,30 @@ proc( Value : val -> ) =>: export: freeValue
   end
   val .Composite rcSlice.free
 end
+proc( Value : val iSize : skipIndex -> Value ) =>: export: cloneValue
+  val .Composite ?? if
+    val .Composite [] .length Value rcSlice.create =:: newValue
+    val .Composite [] .length for =:: i
+      i skipIndex == if continue end
+      val .Composite
+        i iSize cast.u rcSlice.get useValue
+      newValue i iSize cast.u rcSlice.set
+    end
+    newValue Value .Composite return
+  end
+  val .String ?? if
+    val .String .length iSize cast.u Value rcSlice.create =:: newValue
+    val .String .length iSize cast.u for =:: i
+      i skipIndex == if continue end
+      val .String .data
+        i [] i64 cast.u Value .Int
+      newValue i iSize cast.u rcSlice.set
+    end
+    newValue Value .Composite return
+  end
+  ## TODO? cloning a string to a mutable array
+  val return
+end
 proc( Type : tp -> Value ) =>: export: defaultValue
   tp switch
     ## TODO? map none-type to special wildcard value
@@ -297,6 +321,7 @@ union(
   i32 : Rotate ## rotate the k-th element to the top (0 indexed), if negative do the reverse rotation
 ) =:: export: StackOp
 enum( ARRAY POINTER MUTABLE_POINTER ) =:: export: ArrayKind
+enum( GET SET AT ) =:: export: ArrayOperator
 union(
   string : ImportLocal
   string : ImportLib
@@ -311,6 +336,7 @@ union(
   StackOp : StackOp
   _ : New
   ArrayKind : NewArrayType
+  ArrayOperator : ArrayOperator
   string : BeginNamespace
   string : EndNamespace
   _ : EOF
@@ -371,6 +397,13 @@ proc( Token : token -> ) =>: export: printToken
         ARRAY case "array":s io.println break
         POINTER case "ptr":s io.println break
         MUTABLE_POINTER case "ptr.mut":s io.println break
+      end
+      break
+    ArrayOperator case
+      token .ArrayOperator switch
+        GET case "[]":s io.println break
+        SET case "=[]":s io.println break
+        AT case "@[]":s io.println break
       end
       break
     BeginNamespace case
