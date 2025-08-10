@@ -461,17 +461,14 @@ union(
   ProcedureBlockInfo : procedureBlock
   string : namespace
 ) =:: export: BlockInfo
-## "interpreter mode" ( set-reset functionality )
-##  code
-##  type-block
-##  initializer
-##  enum
-##  switch-label?
+enum( STOPPED RUN TYPE_BLOCK ) =:: export: InterpreterMode
 struct(
   MixedArenaAllocator : memory
   IdName Identifier hashMap : identifiers
   TypedValue list : stack
   iSize : stackOffset
+  string list : nameStack
+  iSize : nameStackOffset
   string list : imports
   FileId : currentFile
   ## parser state
@@ -480,7 +477,7 @@ struct(
   stringBuilder : nameBuffer
   Token list : tokens
   i32 : parseOffset
-  bool : running
+  InterpreterMode : mode
 ) =:: export: Program
 proc( Type : base ArraySize : size Program ptr.mut : program -> ArrayType ptr ) =>: export: newArrayType
   program [] .memory
@@ -492,15 +489,23 @@ proc( Type : base ArraySize : size Program ptr.mut : program -> ArrayType ptr ) 
   arrayBody
 end
 proc( iSize : argCount Program ptr : program -> bool ) =>: export: checkStack
-  argCount program .stack [] .length program [] .stackOffset - u>
+  program .nameStack [] .length program [] .nameStackOffset - =:: nameStackLength
+  program .stack [] .length program [] .stackOffset - =:: stackLength
+  nameStackLength stackLength u<= "name stack .length <= stack .length" assert
+  argCount stackLength nameStackLength - u>
 end
-proc( iSize : argCount Program ptr.mut : program -> iSize ) =>: export: offsetStack
+proc( iSize : argCount Program ptr.mut : program -> iSize iSize ) =>: export: offsetStack
+  argCount program checkStack if "stack underflow" ..panic end
   program [] .stackOffset =:: oldOffset
-    argCount program .stack [] .length u<= "enough stack capacity" assert
     program .stack [] .length argCount - program .stackOffset=
   oldOffset
+  program [] .nameStackOffset =:: oldNameOffset
+    program .nameStack [] .length program .nameStackOffset=
+  oldNameOffset
 end
-proc( iSize : oldOffset Program ptr.mut : program -> ) =>: export: resetStack
+proc( iSize : oldOffset iSize : oldNameOffset Program ptr.mut : program -> ) =>: export: resetStack
   oldOffset program .stack [] .length u<= "enough stack capacity" assert
+  oldNameOffset program .nameStack [] .length u<= "enough stack capacity" assert
   oldOffset program .stackOffset=
+  oldNameOffset program .nameStackOffset=
 end

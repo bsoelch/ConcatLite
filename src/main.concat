@@ -464,7 +464,7 @@ proc( Procedure ptr : procData Program ptr.mut : program -> ) =>: evaluateCall
     "stack underflow" ..panic
   end
   ## TODO? check argument types
-  procData [] .procType .inTypes .elements [] .length program offsetStack =:: oldOffset
+  procData [] .procType .inTypes .elements [] .length program offsetStack =:: oldNameOffset =:: oldOffset
   procData [] .implementation switch
     code case ## TODO? ensure proc-body is type-checked
       procData .implementation [] .code program evaluateBlock
@@ -473,10 +473,10 @@ proc( Procedure ptr : procData Program ptr.mut : program -> ) =>: evaluateCall
       procData .implementation [] .builtIn program evaluateBuiltIn
       break
   end
-  oldOffset program resetStack
+  oldOffset oldNameOffset program resetStack
 end
 proc( Token slice : tokens BlockType : blockType Program ptr.mut : program -> Type ) =>: evaluateTypeBlock
-  0:iSize program offsetStack =:: oldOffset
+  0:iSize program offsetStack =:: oldNameOffset =:: oldOffset
   program [] .stackOffset =:: baseOffset
   ## TODO? seperate interpreter mode for correct handling of named declarations
   tokens program evaluateBlock
@@ -505,11 +505,11 @@ proc( Token slice : tokens BlockType : blockType Program ptr.mut : program -> Ty
     program .memory=
     baseOffset list.setLength
   program .stack=
-  oldOffset program resetStack
+  oldOffset oldNameOffset program resetStack
   resType return
 end
 proc( Token slice : tokens Program ptr.mut : program -> Value ) =>: evaluateInitializerBlock
-  0:iSize program offsetStack =:: oldOffset
+  0:iSize program offsetStack =:: oldNameOffset =:: oldOffset
   program [] .stackOffset =:: baseOffset
   ## TODO? seperate interpreter mode for correct handling of named declarations
   tokens program evaluateBlock
@@ -521,7 +521,7 @@ proc( Token slice : tokens Program ptr.mut : program -> Value ) =>: evaluateInit
     tupleElts0 for .value resVal i rcSlice.set i 1:iSize + i= end
     baseOffset list.setLength
   program .stack=
-  oldOffset program resetStack
+  oldOffset oldNameOffset program resetStack
   resVal Value .Composite return
 end
 proc( string : name Program ptr.mut : program -> Identifier ptr.mut optional ) =>: findName
@@ -610,7 +610,7 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
             break
           TO_TYPE case
             ## ensure arguments do not interfer with return values
-            0:iSize program offsetStack ..drop
+            0:iSize program offsetStack ..drop.2
             break
           INITIALIZER case
             ## TypedValue
@@ -1061,6 +1061,8 @@ proc( -> ) =>: main
     IdName.hash@ IdName.eq@ 1024 Identifier map.create
     128 TypedValue list.create
     0:iSize
+    128 string list.create
+    0:iSize
     16 string list.create
     FileId.GLOBAL
     128 BlockInfo list.create
@@ -1068,7 +1070,7 @@ proc( -> ) =>: main
     0 sb.create
     128 Token list.create
     0:i32
-    true
+    InterpreterMode .RUN
   Program new =:: mut: program
   program@ initBuiltIns
   ## create fake file with empty name for REPL code
@@ -1077,7 +1079,7 @@ proc( -> ) =>: main
     string.empty list.append
   program@ .imports=
   256 sb.create =:: mut: lineBuffer
-  while program .running do
+  while program .mode .STOPPED ?? ! do
     " >> ":s io.print
     lineBuffer readLine lineBuffer=
     0 program@ .parseOffset=
