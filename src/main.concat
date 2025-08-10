@@ -221,7 +221,13 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
     word $ .length 1:iSize - string.charAt '=' == =:: setValue
     word 1 string.tail
       setValue if $ .length 1:iSize - string.head end
+      $ .length 0:iSize == if
+        "error handling" ..panic
+      end
     =:: eltName
+    eltName 0 string.charAt char.isDigit ! if
+      eltName program copyName setValue if Token .SetNamedElement else Token .GetNamedElement end return
+    end
     eltName 10 number.tryParseUInt switch
       NONE UNSIGNED case break
       default "error handling" ..panic
@@ -487,19 +493,35 @@ proc( Token slice : tokens BlockType : blockType Program ptr.mut : program -> Ty
   program [] .stackOffset baseOffset - =:: argCount
   program [] .nameStackOffset baseNameOffset u>= "name stack offset did not shrink" assert
   program [] .nameStackOffset baseNameOffset - =:: argNameCount
+  program [] .nameStack list.asSlice baseNameOffset slice.tail =:: eltNames0
   program [] .stack
     $ list.asSlice baseOffset slice.tail =:: tupleElts0
     program [] .memory
-      tupleElts0 .length i32 cast Type mixedArena.allocSlice =:: tupleElts
+      tupleElts0 .length 0:iSize == if
+        Type slice.emptyMutable
+      else
+        tupleElts0 .length i32 cast Type mixedArena.allocSlice
+      end =:: tupleElts
+      eltNames0 .length 0:iSize == if
+        ElementLabel slice.empty
+      else
+        eltNames0 .length tupleElts0 .length u<= "at least one element per label" assert
+        tupleElts0 .length i32 cast ElementLabel mixedArena.allocSlice =:: eltNames1
+        eltNames1 .data eltNames0 .data eltNames0 .length mem.copy ..drop
+        eltNames0 .length while $ eltNames1 .length u< do =:: i
+          ElementLabel .None eltNames1 i =[]
+        finally i 1:iSize + end ..drop
+        eltNames1 slice.freeze
+      end =:: eltNames
       0:iSize =:: mut: i
       tupleElts0 for .value .Type tupleElts i =[] i 1:iSize + i= end
       blockType .PROC_TYPE ?? if
         ## ProcedureType
-          tupleElts argCount slice.head slice.freeze CompositeType new
-          tupleElts argCount slice.tail slice.freeze CompositeType new
+          tupleElts argCount slice.head slice.freeze eltNames argNameCount slice.head CompositeType new
+          tupleElts argCount slice.tail slice.freeze eltNames argNameCount slice.tail CompositeType new
         ProcedureType new mixedArena.copyValue Type .Procedure
       else
-        tupleElts slice.freeze CompositeType new mixedArena.copyValue
+        tupleElts slice.freeze eltNames CompositeType new mixedArena.copyValue
         blockType .UNION_TYPE ?? if
           Type .Union
         else
@@ -510,6 +532,7 @@ proc( Token slice : tokens BlockType : blockType Program ptr.mut : program -> Ty
     program .memory=
     baseOffset list.setLength
   program .stack=
+  program [] .nameStack baseNameOffset list.setLength program .nameStack=
   oldOffset oldNameOffset program resetStack
   oldMode program .mode=
   resType return
@@ -765,11 +788,11 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
           tupleData Value .Composite tupleType TypedValue new list.push
         program .stack=
         break
-      GetElement SetElement case
+      GetElement SetElement GetNamedElement SetNamedElement case
         1:iSize program checkStack if
           "stack underflow" ..panic
         end
-        token .SetElement ?? =:: setValue
+        token .SetElement ?? or token .SetNamedElement ?? end =:: setValue
         program [] .stack
           list.pop =:: composite
         program .stack=
@@ -778,10 +801,20 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
             composite .valType .Tuple ?? ! and composite .valType .Array ?? ! if
           "error handling" ..panic
         end
-        setValue if token .SetElement else token .GetElement end =:: index
+        token switch
+          SetElement case token .SetElement iSize cast.u optional.wrap break
+          GetElement case token .GetElement iSize cast.u optional.wrap break
+          SetNamedElement case composite token .SetNamedElement getElementIndex break
+          GetNamedElement case composite token .GetNamedElement getElementIndex break
+          default ..unreachable
+        end =:: index?
+        index? optional.isEmpty if
+          "error handling" ..panic
+        end
+        index? .data =:: index
         composite .value .String ?? if
-          setValue if "error handling" ..panic end
-          index composite .value .String .length i64 cast.u u>= if
+          setValue if "error handling" ..panic end ## TODO copy on write
+          index composite .value .String .length iSize cast.u u>= if
             "error handling" ..panic
           end
           program [] .stack
@@ -793,7 +826,7 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
         composite .value .Composite ?? ! if
           "error handling" ..panic
         end
-        index composite .value .Composite [] .length i64 cast.u u>= if
+        index composite .value .Composite [] .length u>= if
           "error handling" ..panic
         end
         setValue ! if
@@ -803,7 +836,7 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
             composite .valType .Array [] .baseType
           end =:: eltType
           program [] .stack
-            composite .value .Composite index iSize cast.u rcSlice.get useValue
+            composite .value .Composite index rcSlice.get useValue
             eltType TypedValue new list.append
           program .stack=
           composite .value freeValue
@@ -819,10 +852,10 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
         composite .value .Composite [] .RC 1 == if ## only reference -> modify in place
           composite .value .Composite
         else
-          composite .value index iSize cast.u cloneValue .Composite
+          composite .value index cloneValue .Composite
           composite .value .Composite rcSlice.free
         end =:: newElements
-        value .value newElements index iSize cast.u rcSlice.set
+        value .value newElements index rcSlice.set
         program [] .stack
           newElements Value .Composite composite .valType TypedValue new list.append
         program .stack=

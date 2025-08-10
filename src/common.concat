@@ -5,10 +5,30 @@ import numbers/printNumbers
 import future/rcSlice
 using std.literals.
 
+## TODO split into multiple files (types,constants,identifiers)
+i16 =:: export: IdModifier
+namespace: IdModifier
+  0:IdModifier =:: export: NONE
+  1:IdModifier =:: export: MUTABLE
+  2:IdModifier =:: export: BUILTIN
+  4:IdModifier =:: export: EXPORT
+  ( IdModifier IdModifier -> IdModifier ) : alias: export: or i16.or
+  ( IdModifier IdModifier -> IdModifier ) : alias: export: and i16.and
+  ( IdModifier -> bool ) : alias: export: toBool i16.toBool
+end
+overload: & IdModifier.and end
+overload: | IdModifier.or end
+overload: ? IdModifier.toBool end
+struct(
+  string : name
+  IdModifier : idModifiers
+) =:: export: Label
+union( _ : None Label : Label ) =:: export: ElementLabel
 type : export: Type
 struct(
   Type slice : elements
-  ## TODO? remember element names (? list of pointers to "Label" structs )
+  ## TODO? use `Label _ ptr optional` to avoid storing length twice
+  ElementLabel slice : labels
 ) =:: export: CompositeType
 struct(
   CompositeType : inTypes
@@ -56,7 +76,7 @@ union(
   f64 : Float
   Type : Type
   Procedure ptr : Procedure
-  Value rcSlice : Composite
+  Value rcSlice : Composite ## TODO remember element labels
   StringLiteral : String
 ) =:: export: Value
 struct(
@@ -166,6 +186,17 @@ proc( ArraySize : size -> ) =>: printArraySize
     Unbounded case '_' io.printC return
   end
 end
+proc( CompositeType : t -> ) =>: export: printComposite
+  t .elements .length for =:: i
+    t .elements i [] printType
+    i t .labels .length u< and t .labels i [] =:: label label .Label ?? if
+      " : ":s io.print
+      ## TODO? print modifiers
+      label .Label .name io.print
+    end
+   ' ' io.print
+  end
+end
 proc( Type : t -> ) =>: export: printType
   t switch
     None case "?":s io.print break
@@ -181,17 +212,17 @@ proc( Type : t -> ) =>: export: printType
     Type case "type":s io.print break
     Tuple case
       "( ":s io.print
-        t .Tuple [] .elements for printType ' ' io.print end
+        t .Tuple [] printComposite
       ')' io.print break
     Union case
       "union( ":s io.print
-        t .Union [] .elements for printType ' ' io.print end
+        t .Union [] printComposite
       ')' io.print break
     Procedure case
       "( ":s io.print
-        t .Procedure .inTypes [] .elements for printType ' ' io.print end
+        t .Procedure .inTypes [] printComposite
         "-> ":s io.print
-        t .Procedure .outTypes [] .elements for printType ' ' io.print end
+        t .Procedure .outTypes [] printComposite
       ')' io.print break
     Array case
       t .Array [] .baseType printType ' ' io.print
@@ -263,6 +294,30 @@ proc( TypedValue : val -> i64 ) =>: export: asInt
   val .value .Int
 end
 
+proc( CompositeType ptr : t string : name -> iSize optional ) =>: compositeTypeElementIndex
+  t [] .labels .length for =:: i
+    t [] .labels i [] =:: label
+    label .Label ?? and label .Label .name name string.eq if i optional.wrap return end
+  end
+  iSize optional.empty
+end
+proc( Value : v string : name -> iSize optional ) =>: getValueElementIndex
+  ## TODO support labeled values
+  iSize optional.empty return
+end
+proc( TypedValue : val string : name -> iSize optional ) =>: export: getElementIndex
+  val .valType .Tuple ?? if
+    val .valType .Tuple name compositeTypeElementIndex
+  else val .valType .Union ?? _if
+    val .valType .Union name compositeTypeElementIndex
+  else val .valType .None ?? _if
+    val .value name getValueElementIndex
+  else
+    ## TODO are there any other types with named elements
+    iSize optional.empty return
+  end
+end
+
 enum( IF ELSE WHILE DO  PROCEDURE TUPLE_TYPE UNION_TYPE PROC_TYPE TO_TYPE INITIALIZER ) =:: export: BlockType
 struct(
   i32 : target
@@ -283,19 +338,6 @@ proc( CodeBlock : block -> ) =>: export: printBlock
   end
   block .target io.println
 end
-i16 =:: export: IdModifier
-namespace: IdModifier
-  0:IdModifier =:: export: NONE
-  1:IdModifier =:: export: MUTABLE
-  2:IdModifier =:: export: BUILTIN
-  4:IdModifier =:: export: EXPORT
-  ( IdModifier IdModifier -> IdModifier ) : alias: export: or i16.or
-  ( IdModifier IdModifier -> IdModifier ) : alias: export: and i16.and
-  ( IdModifier -> bool ) : alias: export: toBool i16.toBool
-end
-overload: & IdModifier.and end
-overload: | IdModifier.or end
-overload: ? IdModifier.toBool end
 
 i32 =:: export: FileId
 namespace: FileId
@@ -329,6 +371,8 @@ union(
   string : SetValue
   i64 : GetElement
   i64 : SetElement
+  string : GetNamedElement
+  string : SetNamedElement
   InitInfo : Initialize
   TypedValue : Constant
   CodeBlock : Block
@@ -359,6 +403,12 @@ proc( Token : token -> ) =>: export: printToken
       break
     SetElement case
       "SetElement: ":s io.print token .SetElement io.println
+      break
+    GetNamedElement case
+      "GetNamedElement: ":s io.print token .GetNamedElement io.println
+      break
+    SetNamedElement case
+      "SetNamedElement: ":s io.print token .SetNamedElement io.println
       break
     ImportLocal case
       "ImportLocal: ":s io.print token .ImportLocal io.println
@@ -461,11 +511,6 @@ union(
   ProcedureBlockInfo : procedureBlock
   string : namespace
 ) =:: export: BlockInfo
-struct(
-  string : name
-  IdModifier : idModifiers
-) =:: export: Label
-union( _ : None Label : Label ) =:: export: ElementLabel
 enum( STOPPED RUN TYPE_BLOCK INITIALIZER ) =:: export: InterpreterMode
 struct(
   MixedArenaAllocator : memory

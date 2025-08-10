@@ -34,6 +34,10 @@ run:
 - [x] Union Types
 - [x] Namespaces
 - [x] dynamic array/pointer indexing
+- [x] Named tuple elements
+- [ ] Named initializer elements
+- [ ] Named procedure arguments
+- [ ] Scopes
 - [ ] Enum Types
 - [ ] Union Value
 - [ ] Enum Values
@@ -42,10 +46,7 @@ run:
 - [ ] pointer element access
 - [ ] unsized pointers
 - [ ] Type Checking
-- [ ] Named procedure arguments
-- [ ] Named tuple elements
 - [ ] Library Imports
-- [ ] Scopes
 - [ ] Switch-Case
 - [ ] Procedure Overloads
 - [ ] For loops

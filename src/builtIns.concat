@@ -32,20 +32,20 @@ proc( Program ptr.mut : program -> ) =>: export: initBuiltIns
     { Type .Bool Type .Bool } mixedArena.copyPtrs =:: boolbool
     { Type .Bool Type .I32 } mixedArena.copyPtrs =:: typei32
     ## ProcedureType
-      None1 slice.wrap CompositeType new
-      Type slice.empty CompositeType new
+      None1 slice.wrap ElementLabel slice.empty CompositeType new
+      Type slice.empty ElementLabel slice.empty CompositeType new
     ProcedureType new mixedArena.copyValue =:: None_
     ## ProcedureType
-      typei32 slice.wrap CompositeType new
-      typei32 1 slice.create CompositeType new
+      typei32 slice.wrap ElementLabel slice.empty CompositeType new
+      typei32 1 slice.create ElementLabel slice.empty CompositeType new
     ProcedureType new mixedArena.copyValue =:: typei32_type
     ## ProcedureType
-      i32i32 slice.wrap CompositeType new
-      i32i32 1 slice.create CompositeType new
+      i32i32 slice.wrap ElementLabel slice.empty CompositeType new
+      i32i32 1 slice.create ElementLabel slice.empty CompositeType new
     ProcedureType new mixedArena.copyValue =:: i32i32_i32
     ## ProcedureType
-      i32i32 slice.wrap CompositeType new
-      boolbool 1 slice.create CompositeType new
+      i32i32 slice.wrap ElementLabel slice.empty CompositeType new
+      boolbool 1 slice.create ElementLabel slice.empty CompositeType new
     ProcedureType new mixedArena.copyValue =:: i32i32_bool
     i32i32_i32
       BuiltIn .ADD_I32 ProcImplementation .builtIn
