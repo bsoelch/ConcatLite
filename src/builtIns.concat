@@ -2,7 +2,7 @@ import "common.concat"
 import map
 using std.literals.
 
-enum( ADD_I32 SUB_I32 MUL_I32 LT_I32 EQ_I32 PRINT ARRAYTYPE PTRTYPE PTRMUTTYPE ) =:: export: BuiltIn
+enum( ADD_I32 SUB_I32 MUL_I32 LT_I32 EQ_I32 PRINT ) =:: export: BuiltIn
 
 proc( IdName Identifier hashMap ptr.mut : idNames string : name Type : t -> ) =>: newBuiltInType
   idNames name FileId.GLOBAL IdName new
@@ -65,15 +65,6 @@ proc( Program ptr.mut : program -> ) =>: export: initBuiltIns
     None_
       BuiltIn .PRINT ProcImplementation .builtIn
     Procedure new mixedArena.copyValue =:: PRINT_ID
-    typei32_type
-      BuiltIn .ARRAYTYPE ProcImplementation .builtIn
-    Procedure new mixedArena.copyValue =:: ARRAYTYPE_ID
-    typei32_type
-      BuiltIn .PTRTYPE ProcImplementation .builtIn
-    Procedure new mixedArena.copyValue =:: PTRTYPE_ID
-    typei32_type
-      BuiltIn .PTRMUTTYPE ProcImplementation .builtIn
-    Procedure new mixedArena.copyValue =:: PTRMUTTYPE_ID
   program .memory=
   program .identifiers "+":s ADD_I32_ID newBuiltInProc
   program .identifiers "-":s SUB_I32_ID newBuiltInProc
@@ -81,9 +72,6 @@ proc( Program ptr.mut : program -> ) =>: export: initBuiltIns
   program .identifiers "<":s LT_I32_ID newBuiltInProc
   program .identifiers "==":s EQ_I32_ID newBuiltInProc
   program .identifiers "print":s PRINT_ID newBuiltInProc
-  program .identifiers "array":s ARRAYTYPE_ID newBuiltInProc
-  program .identifiers "ptr":s PTRTYPE_ID newBuiltInProc
-  program .identifiers "ptr.mut":s PTRMUTTYPE_ID newBuiltInProc
 end
 proc( BuiltIn : builtIn Program ptr.mut : program -> )  =>: export: evaluateBuiltIn
   builtIn switch
@@ -136,27 +124,6 @@ proc( BuiltIn : builtIn Program ptr.mut : program -> )  =>: export: evaluateBuil
         list.pop =:: b
         list.pop =:: a
         a asI32 b asI32 == Value .Bool Type .Bool TypedValue new list.push
-      program .stack=
-      break
-    ARRAYTYPE PTRTYPE PTRMUTTYPE case
-      2:iSize program checkStack if
-        "stack underflow" ..panic
-      end
-      program [] .stack
-        list.pop asI32 i64 cast.u =:: size
-        list.pop asType =:: base
-      program .stack=
-      base size program newArrayType
-        builtIn .ARRAYTYPE ?? if
-          Type .Array
-        else builtIn .PTRTYPE ?? _if
-          Type .Pointer
-        else builtIn .PTRMUTTYPE ?? _if
-          Type .MutablePointer
-        else ..unreachable end
-      =:: arrayType
-      program [] .stack
-        arrayType Value .Type Type .Type TypedValue new list.push
       program .stack=
       break
     PRINT case

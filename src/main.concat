@@ -168,7 +168,7 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
   c0 '"' == or c0 '`' == if
     word c0 '`' == program parseStringLiteral =:: literal
     literal Value .String
-      Type .Char8 literal .length i64 cast.u program newArrayType Type .Pointer
+      Type .Char8 literal .length i64 cast.u ArraySize .Fixed program newArrayType Type .Pointer
     TypedValue new Token .Constant return
   else c0 '\'' == _if
     word false program parseStringLiteral =:: literal
@@ -178,7 +178,7 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
       TypedValue new Token .Constant return
     end
     literal Value .String
-      Type .Char8 literal .length i64 cast.u program newArrayType Type .Array
+      Type .Char8 literal .length i64 cast.u ArraySize .Fixed program newArrayType Type .Array
     TypedValue new Token .Constant return
   end
   c0 char.isDigit if
@@ -228,6 +228,12 @@ proc( string : mut: next Program ptr.mut : program -> i32 Token ) =>: nextToken
     eltId setValue if Token .SetElement else Token .GetElement end return
   else word "new":s string.eq _if
     Token .New return
+  else word "array":s string.eq _if
+    ArrayKind .ARRAY Token .NewArrayType return
+  else word "ptr":s string.eq _if
+    ArrayKind .POINTER Token .NewArrayType return
+  else word "ptr.mut":s string.eq _if
+    ArrayKind .MUTABLE_POINTER Token .NewArrayType return
   else word "import":s string.eq _if
     next nextWord =:: name next= + name .length i32 cast.u +
     name 0 string.charAt '"' == if
@@ -840,6 +846,47 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
             end
             break
         end break
+      NewArrayType case ## TODO? convert to built-in when there is overloading
+        1:iSize program checkStack if
+          "stack underflow" ..panic
+        end
+        ArraySize 4 array : sizeBuffer ## TODO switch to dynamic allocating if buffer is full
+        sizeBuffer@ list.wrapBuffer =:: mut: sizes
+        while program [] .stack list.peek .data .valType .Type ?? ! do
+          program [] .stack
+            list.pop =:: sizeVal
+          program .stack=
+          ## TODO support wildcard value for unsized pointers
+          sizes
+            sizeVal asInt ArraySize .Fixed list.push
+          sizes=
+          1:iSize program checkStack if
+            "stack underflow" ..panic
+          end
+        end
+        program [] .stack
+          list.pop asType =:: mut: typeVal
+        program .stack=
+        sizes .length 0:iSize == if ## no explicit size -> implicit size of 1
+          sizes 1 ArraySize .Fixed list.push sizes=
+        end
+        0:iSize while $ sizes .length 1:iSize - u< do =:: i
+          sizes
+            list.pop =:: nextSize
+          sizes=
+          typeVal nextSize program newArrayType Type .Array typeVal=
+        finally i 1:iSize + end ..drop
+        sizes list.pop =:: outerSize list.free sizes=
+        program [] .stack
+          typeVal outerSize program newArrayType
+            token .NewArrayType switch
+              ARRAY case Type .Array break
+              POINTER case Type .Pointer break
+              MUTABLE_POINTER case Type .MutablePointer break
+            end
+          Value .Type Type .Type TypedValue new list.append
+        program .stack=
+        break
       ImportLocal ImportLib case
         importBuffer@ sb.wrapBuffer
           token .ImportLocal ?? if

@@ -230,10 +230,13 @@ proc( TypedValue : val -> i32 ) =>: export: asI32
   val .valType .I32 ?? ! and val .valType .None ?? ! if
     "error handling" ..panic
   end
+  val asInt i32 cast
+end
+proc( TypedValue : val -> i64 ) =>: export: asInt
   val .value .Int ?? ! if
     "error handling" ..panic
   end
-  val .value .Int i32 cast
+  val .value .Int
 end
 
 enum( IF ELSE WHILE DO  PROCEDURE TUPLE_TYPE UNION_TYPE PROC_TYPE TO_TYPE INITIALIZER ) =:: export: BlockType
@@ -293,6 +296,7 @@ union(
   i32 : Drop ## drop the top k-th elements
   i32 : Rotate ## rotate the k-th element to the top (0 indexed), if negative do the reverse rotation
 ) =:: export: StackOp
+enum( ARRAY POINTER MUTABLE_POINTER ) =:: export: ArrayKind
 union(
   string : ImportLocal
   string : ImportLib
@@ -306,6 +310,7 @@ union(
   CodeBlock : EndBlock
   StackOp : StackOp
   _ : New
+  ArrayKind : NewArrayType
   string : BeginNamespace
   string : EndNamespace
   _ : EOF
@@ -361,6 +366,13 @@ proc( Token : token -> ) =>: export: printToken
       end io.println
       break
     New case "New":s io.println break
+    NewArrayType case
+      token .NewArrayType switch
+        ARRAY case "array":s io.println break
+        POINTER case "ptr":s io.println break
+        MUTABLE_POINTER case "ptr.mut":s io.println break
+      end
+      break
     BeginNamespace case
       "Namespace: \"":s io.print
       token .BeginNamespace io.print
@@ -437,11 +449,11 @@ struct(
   i32 : parseOffset
   bool : running
 ) =:: export: Program
-proc( Type : base i64 : size Program ptr.mut : program -> ArrayType ptr ) =>: export: newArrayType
+proc( Type : base ArraySize : size Program ptr.mut : program -> ArrayType ptr ) =>: export: newArrayType
   program [] .memory
     ## ArrayType
       base
-      size ArraySize .Fixed
+      size
     ArrayType new mixedArena.copyValue =:: arrayBody
   program .memory=
   arrayBody
