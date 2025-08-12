@@ -487,7 +487,6 @@ proc( Token slice : tokens BlockType : blockType Program ptr.mut : program -> Ty
   InterpreterMode .TYPE_BLOCK program .mode=
   program [] .stackOffset =:: baseOffset
   program [] .nameStackOffset =:: baseNameOffset
-  ## TODO? seperate interpreter mode for correct handling of named declarations
   tokens program evaluateBlock
   program [] .stackOffset baseOffset u>= "stack offset did not shrink" assert
   program [] .stackOffset baseOffset - =:: argCount
@@ -542,7 +541,6 @@ proc( Token slice : tokens Program ptr.mut : program -> Value ) =>: evaluateInit
   program [] .mode =:: oldMode
   InterpreterMode .TYPE_BLOCK program .mode=
   program [] .stackOffset =:: baseOffset
-  ## TODO? seperate interpreter mode for correct handling of named declarations
   tokens program evaluateBlock
   program [] .stackOffset baseOffset == "stack offset did not change" assert
   program [] .stack
@@ -564,11 +562,12 @@ proc( string : name Program ptr.mut : program -> Identifier ptr.mut optional ) =
      $ .length 0:iSize != if '.' sb.appendC end
      name sb.appendStr
    program .nameBuffer=
+   ## TODO search value in local scopes
    while
      program [] .nameBuffer sb.asStr =:: fullName
-     program .identifiers fullName program [] .currentFile IdName new map.at
+     program .identifiers fullName program [] .currentFile ScopeId.GLOBAL IdName new map.at
      $ optional.hasData if return end ..drop
-     program .identifiers fullName FileId.GLOBAL IdName new map.at
+     program .identifiers fullName FileId.GLOBAL ScopeId.GLOBAL IdName new map.at
      $ optional.hasData if return end ..drop
    prefix .length 0:iSize != do
      prefix '.' string.splitLast prefix= =:: tail
@@ -741,6 +740,11 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
         else
           program [] .currentFile
         end =:: fileId
+        fileId FileId.GLOBAL == or token .Initialize .modifiers IdModifier.GLOBAL & ? if
+          ScopeId.GLOBAL
+        else
+          program [] .currentScope
+        end =:: scopeId
         ## add current namespace before name
         program [] .currentNamespace
           $ .length =:: oldLength
@@ -752,7 +756,7 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
           oldLength sb.setLength
         program .currentNamespace=
         program .identifiers
-          fullName fileId IdName new
+          fullName fileId scopeId IdName new
           value token .Initialize .modifiers Identifier new
         map.put ..drop
         break
@@ -1076,6 +1080,12 @@ proc( string : path Program ptr.mut : program -> ) =>: importFile
   end
   path program copyName =:: fixedPath
   program [] .currentFile =:: oldFileId
+  program [] .currentScope =:: oldScopeId
+  program [] .currentProcScope =:: oldProcScopeId
+  program [] .scopeCounter =:: oldScopeCounter
+  ScopeId.GLOBAL program .currentScope=
+  ScopeId.GLOBAL program .currentProcScope=
+  0:ScopeId program .scopeCounter=
   program [] .imports
     $ .length FileId cast program .currentFile=
     fixedPath list.append
@@ -1094,6 +1104,9 @@ proc( string : path Program ptr.mut : program -> ) =>: importFile
   srcFile io.fclose ..drop
   program [] .tokens list.asSlice tokenOffset slice.tail program evaluateBlock
   oldFileId program .currentFile=
+  oldScopeId program .currentScope=
+  oldProcScopeId program .currentProcScope=
+  oldScopeCounter program .scopeCounter=
   program [] .currentNamespace sb.free ..drop
   oldNamespace program .currentNamespace=
 end
@@ -1124,7 +1137,11 @@ proc( -> ) =>: main
     128 ElementLabel list.create
     0:iSize
     16 string list.create
+    64 ScopeId list.create
     FileId.GLOBAL
+    ScopeId.GLOBAL
+    ScopeId.GLOBAL
+    0:ScopeId
     128 BlockInfo list.create
     0 sb.create
     0 sb.create

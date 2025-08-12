@@ -5,13 +5,13 @@ using std.literals.
 enum( ADD_I32 SUB_I32 MUL_I32 LT_I32 EQ_I32 PRINT ) =:: export: BuiltIn
 
 proc( IdName Identifier hashMap ptr.mut : idNames string : name Type : t -> ) =>: newBuiltInType
-  idNames name FileId.GLOBAL IdName new
+  idNames name FileId.GLOBAL ScopeId.GLOBAL IdName new
     t Value .Type Type .Type TypedValue new
     IdModifier.BUILTIN
   Identifier new map.put ..drop
 end
 proc( IdName Identifier hashMap ptr.mut : idNames string : name Procedure ptr : proc -> ) =>: newBuiltInProc
-  idNames name FileId.GLOBAL IdName new
+  idNames name FileId.GLOBAL ScopeId.GLOBAL IdName new
     proc Value .Procedure proc [] .procType Type .Procedure TypedValue new
     IdModifier.BUILTIN
   Identifier new map.put ..drop

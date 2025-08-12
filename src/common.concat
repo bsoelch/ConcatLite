@@ -12,6 +12,7 @@ namespace: IdModifier
   1:IdModifier =:: export: MUTABLE
   2:IdModifier =:: export: BUILTIN
   4:IdModifier =:: export: EXPORT
+  8:IdModifier =:: export: GLOBAL
   ( IdModifier IdModifier -> IdModifier ) : alias: export: or i16.or
   ( IdModifier IdModifier -> IdModifier ) : alias: export: and i16.and
   ( IdModifier -> bool ) : alias: export: toBool i16.toBool
@@ -343,16 +344,21 @@ i32 =:: export: FileId
 namespace: FileId
   -1:FileId =:: export: GLOBAL
 end
+i32 =:: export: ScopeId
+namespace: ScopeId
+ -1:ScopeId =:: export: GLOBAL
+end
 struct(
   string : name
   FileId : fileId
+  ScopeId : scopeId
 ) =:: export: IdName
 namespace: IdName
   proc( IdName : a IdName : b -> bool ) =>: export: eq
-    a .fileId b .fileId == and a .name b .name string.eq end
+    a .fileId b .fileId == and a .scopeId b .scopeId == and a .name b .name string.eq end
   end
   proc( IdName : a -> i32 ) =>: export: hash
-    a .fileId i32 cast.u 31 * a .name string.hash +
+    a .fileId i32 cast.u 31 * a .scopeId i32 cast.u + 31 * a .name string.hash +
   end
 end
 enum( DECLARE TYPED AUTO ) =:: export: InitType
@@ -520,7 +526,11 @@ struct(
   ElementLabel list : nameStack
   iSize : nameStackOffset
   string list : imports
+  ScopeId list : scopeStack
   FileId : currentFile
+  ScopeId : currentScope
+  ScopeId : currentProcScope
+  ScopeId : scopeCounter
   ## parser state
   BlockInfo list : openBlocks
   stringBuilder : currentNamespace
@@ -566,4 +576,9 @@ proc( iSize : oldOffset iSize : oldNameOffset Program ptr.mut : program -> ) =>:
   oldNameOffset program .nameStack [] .length u<= "enough stack capacity" assert
   oldOffset program .stackOffset=
   oldNameOffset program .nameStackOffset=
+end
+proc( Program ptr.mut : program -> ScopeId ) =>: export: nextScope
+  program [] .scopeCounter
+    $ i32 cast.u 1 + ScopeId cast.u program .scopeCounter=
+  return
 end
