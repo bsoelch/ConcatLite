@@ -25,30 +25,32 @@ end
 
 proc( string : mut: next -> i32 string string ) =>: nextWord
   0 =:: mut: i0
+  0 =:: mut: i
   while
     ## skip leading spaces
-    while i0 iSize cast.u next .length u< and next i0 string.charAt char.isSpace do i0 1 + i0= end
-    next i0 string.tail next=
+    while i iSize cast.u next .length u< and next i string.charAt char.isSpace do i 1 + i= end
+    next i string.tail next=
+    i0 i + i0=
+    0 i=
     next "##":s string.startsWith if ## line comment
-      i0 2 + i0=
-      while i0 iSize cast.u next .length u< and next i0 string.charAt '\n' != do i0 1 + i0= end
+      i 2 + i=
+      while i iSize cast.u next .length u< and next i string.charAt '\n' != do i 1 + i= end
       continue
     end
     next "#+":s string.startsWith if ## block comment
-      i0 =:: i00
-      i0 3 + i0=
+      i 3 + i=
       1 =:: mut: level
-      while i0 iSize cast.u next .length u< and level 0 > do
-        next i0 1 - string.charAt '+' == and next i0 string.charAt '#' == if
-          i0 1 + i0=
+      while i iSize cast.u next .length u< and level 0 > do
+        next i 1 - string.charAt '+' == and next i string.charAt '#' == if
+          i 1 + i=
           level 1 - level=
-        else next i0 1 - string.charAt '#' == and next i0 string.charAt '+' == _if
-          i0 1 + i0=
+        else next i 1 - string.charAt '#' == and next i string.charAt '+' == _if
+          i 1 + i=
           level 1 + level=
         end
-        i0 1 + i0=
+        i 1 + i=
       end
-      level 0 > if i00 next string.empty return end
+      level 0 > if i0 next string.empty return end
       continue
     end
     false
@@ -56,7 +58,7 @@ proc( string : mut: next -> i32 string string ) =>: nextWord
   next .length 0:iSize == if
     i0 next next return
   end
-  0 =:: mut: i
+  i 0 == "index gets reset in loop" assert
   ## strings
   ## TODO? change return type to distinguish different types of "words" ( identifier,  string, literal-modifier)
   next 0 string.charAt =:: c0
@@ -104,6 +106,9 @@ proc( string : mut: expr -> i32 IdModifier string ) =>: parseDeclaration
     end
     modif "export":s string.eq if
       modifiers IdModifier.EXPORT | modifiers=
+    end
+    modif "global":s string.eq if
+      modifiers IdModifier.GLOBAL | modifiers=
     end
   end
   i modifiers name
@@ -605,11 +610,9 @@ proc( Program ptr.mut : program -> bool ) =>: getCondition
   cond asBool
 end
 proc( Program ptr.mut : program -> ) =>: openScope
-  program [] .currentScope ScopeId.GLOBAL != if
-    program [] .scopeStack
-      program [] .currentScope list.append
-    program .scopeStack=
-  end
+  program [] .scopeStack
+    program [] .currentScope list.append
+  program .scopeStack=
   program [] .scopeCounter
     $ i32 cast.u 1 + ScopeId cast.u program .scopeCounter=
   program .currentScope=
@@ -618,6 +621,8 @@ proc( Program ptr.mut : program -> ) =>: closeScope
   program [] .scopeStack
     $ .length 0:iSize != if
       list.pop program .currentScope=
+    else
+      "unexpected end of scope" ..panic
     end
   program .scopeStack=
 end
@@ -665,8 +670,7 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
             end
             break
           ELSE case
-            program closeScope
-            program openScope
+            program closeScope ## close if-scope before jump to end
             ip token .Block .target + ip=
             break
           UNION_TYPE TUPLE_TYPE PROC_TYPE case
@@ -718,6 +722,7 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
             program [] .stack
               list.pop asType =:: procType
             program .stack=
+            ## TODO remember scope
             token .Block .target =:: procLength
             program [] .memory
               tokens ip 1 + procLength slice.getSlice mixedArena.copySlice =:: procBody
@@ -736,7 +741,9 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
         end
         break
       EndBlock case
-        program closeScope ## TODO is this always the case?
+        token .EndBlock .blockType .IF ?? or token .EndBlock .blockType .WHILE ?? if
+          program closeScope
+        end
         ip token .EndBlock .target + ip=
         break
       SetValue case
