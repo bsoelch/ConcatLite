@@ -473,7 +473,12 @@ proc( Procedure ptr : procData Program ptr.mut : program -> ) =>: evaluateCall
   procData [] .procType .inTypes .elements [] .length program offsetStack =:: oldNameOffset =:: oldOffset
   procData [] .implementation switch
     code case ## TODO? ensure proc-body is type-checked
+      program [] .currentProcScope =:: prevProc
+      program openScope ## TODO! evaluate procedures in scope at declaration position
+      program [] .currentScope program .currentProcScope=
       procData .implementation [] .code program evaluateBlock
+      program closeScope
+      prevProc program .currentProcScope=
       break
     builtIn case
       procData .implementation [] .builtIn program evaluateBuiltIn
@@ -562,7 +567,19 @@ proc( string : name Program ptr.mut : program -> Identifier ptr.mut optional ) =
      $ .length 0:iSize != if '.' sb.appendC end
      name sb.appendStr
    program .nameBuffer=
-   ## TODO search value in local scopes
+   program [] .currentScope =:: mut: scopeId
+   scopeId ScopeId.GLOBAL != if
+     program [] .nameBuffer sb.asStr =:: fullName
+     program .identifiers fullName program [] .currentFile scopeId IdName new map.at
+     $ optional.hasData if return end ..drop
+     program [] .scopeStack .length 1:iSize - while =:: i i -1:iSize != and
+       program [] .scopeStack i [] scopeId=
+       scopeId program [] .currentProcScope !=
+     do
+       program .identifiers fullName program [] .currentFile scopeId IdName new map.at
+       $ optional.hasData if return end ..drop
+     finally i 1:iSize - end
+   end
    while
      program [] .nameBuffer sb.asStr =:: fullName
      program .identifiers fullName program [] .currentFile ScopeId.GLOBAL IdName new map.at
@@ -577,6 +594,32 @@ proc( string : name Program ptr.mut : program -> Identifier ptr.mut optional ) =
      program .nameBuffer=
    end
    Identifier ptr.mut optional.empty
+end
+proc( Program ptr.mut : program -> bool ) =>: getCondition
+  1:iSize program checkStack if
+    "stack underflow" ..panic
+  end
+  program [] .stack
+    list.pop =:: cond
+  program .stack=
+  cond asBool
+end
+proc( Program ptr.mut : program -> ) =>: openScope
+  program [] .currentScope ScopeId.GLOBAL != if
+    program [] .scopeStack
+      program [] .currentScope list.append
+    program .scopeStack=
+  end
+  program [] .scopeCounter
+    $ i32 cast.u 1 + ScopeId cast.u program .scopeCounter=
+  program .currentScope=
+end
+proc( Program ptr.mut : program -> ) =>: closeScope
+  program [] .scopeStack
+    $ .length 0:iSize != if
+      list.pop program .currentScope=
+    end
+  program .scopeStack=
 end
 proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
   0:i32 =:: mut: ip
@@ -610,19 +653,24 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
         break
       Block case
         token .Block .blockType switch
-          IF DO case
-            1:iSize program checkStack if
-              "stack underflow" ..panic
-            end
-            program [] .stack
-              list.pop =:: cond
-            program .stack=
-            cond asBool ! if
+          IF case
+            program openScope
+            program getCondition ! if
               ip token .Block .target + ip=
             end
             break
-          ELSE case ip token .Block .target + ip= break
+          DO case
+            program getCondition ! if
+              ip token .Block .target + ip=
+            end
+            break
+          ELSE case
+            program closeScope
+            program openScope
+            ip token .Block .target + ip=
+            break
           UNION_TYPE TUPLE_TYPE PROC_TYPE case
+            program openScope
             ## TypedValue
               ## evaluateTypeBlock
                 tokens
@@ -633,6 +681,7 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
               program evaluateTypeBlock Value .Type
               Type .Type
             TypedValue new =:: newType
+            program closeScope
             ## ! evaluateTypeBlock modifies stack -> cannot inline type-declaration
             program [] .stack
               newType list.append
@@ -640,10 +689,12 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
             ip token .Block .target + ip=
             break
           TO_TYPE case
+            ## TODO should second half of proc-type have its own scope?
             ## ensure arguments do not interfer with return values
             0:iSize program offsetStack ..drop.2
             break
           INITIALIZER case
+            program openScope
             ## TypedValue
               ## evaluateInitializerBlock
                 tokens
@@ -653,6 +704,7 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
               program evaluateInitializerBlock
               Type .None
             TypedValue new =:: newVal
+            program closeScope
             ## ! evaluateInitializerBlock modifies stack -> cannot inline type-declaration
             program [] .stack
               newVal list.append
@@ -678,10 +730,13 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
             program .stack=
             ip procLength + ip= ## skip procedure body
             break
-          WHILE case break ## nothing to do
+          WHILE case
+            program openScope
+            break
         end
         break
       EndBlock case
+        program closeScope ## TODO is this always the case?
         ip token .EndBlock .target + ip=
         break
       SetValue case
@@ -1056,6 +1111,12 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
         filePath program importFile
         break
       BeginNamespace case
+        program [] .currentScope ScopeId.GLOBAL != if
+          ## TODO is there a good way to resolve names when scoped variables can be in different namespaces
+          ##  ->?  somehow link local namespace to scope (? pseudo-scope to notify name-resolver to search in parent namespace)
+          ##  three types of ids on scope stack: scopeId, procScopeId, parentNamespace
+          "error handling" ..panic ## namespaces are not allowed within scopes
+        end
         program [] .currentNamespace
           $ .length 0:iSize != if '.' sb.appendC end
           token .BeginNamespace sb.appendStr

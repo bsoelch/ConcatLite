@@ -577,8 +577,3 @@ proc( iSize : oldOffset iSize : oldNameOffset Program ptr.mut : program -> ) =>:
   oldOffset program .stackOffset=
   oldNameOffset program .nameStackOffset=
 end
-proc( Program ptr.mut : program -> ScopeId ) =>: export: nextScope
-  program [] .scopeCounter
-    $ i32 cast.u 1 + ScopeId cast.u program .scopeCounter=
-  return
-end
