@@ -35,9 +35,9 @@ run:
 - [x] Namespaces
 - [x] dynamic array/pointer indexing
 - [x] Named tuple elements
+- [x] Scopes
 - [ ] Named initializer elements
 - [ ] Named procedure arguments
-- [ ] Scopes
 - [ ] Enum Types
 - [ ] Union Value
 - [ ] Enum Values

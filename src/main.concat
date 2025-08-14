@@ -477,13 +477,30 @@ proc( Procedure ptr : procData Program ptr.mut : program -> ) =>: evaluateCall
   ## TODO? check argument types
   procData [] .procType .inTypes .elements [] .length program offsetStack =:: oldNameOffset =:: oldOffset
   procData [] .implementation switch
-    code case ## TODO? ensure proc-body is type-checked
-      program [] .currentProcScope =:: prevProc
-      program openScope ## TODO! evaluate procedures in scope at declaration position
-      program [] .currentScope program .currentProcScope=
-      procData .implementation [] .code program evaluateBlock
-      program closeScope
-      prevProc program .currentProcScope=
+    code case
+      procData .implementation .code =:: code
+      ## TODO? ensure proc-body is type-checked
+      ## switch to declaration context
+      ## TODO? only switch to declaration scope for type-check phase (ensure typed-checked code is scope indepented)
+      program [] .currentScope =:: prevScope
+      code [] .scope program .currentScope=
+      program [] .scopeStack
+        $ .length =:: oldScopeStackSize
+        code [] .scopeStack list.appendSlice
+      program .scopeStack=
+      program [] .currentNamespace =:: oldNamespace
+      code [] .namespace sb.wrapSlice program .currentNamespace=
+      program [] .currentFile =:: prevFile
+      code [] .file program .currentFile=
+      ## run code
+      code [] .code program evaluateBlock
+      ## restore state
+      program [] .scopeStack
+        oldScopeStackSize list.setLength
+      program .scopeStack=
+      prevScope program .currentScope=
+      oldNamespace program .currentNamespace=
+      prevFile program .currentFile=
       break
     builtIn case
       procData .implementation [] .builtIn program evaluateBuiltIn
@@ -579,7 +596,7 @@ proc( string : name Program ptr.mut : program -> Identifier ptr.mut optional ) =
      $ optional.hasData if return end ..drop
      program [] .scopeStack .length 1:iSize - while =:: i i -1:iSize != and
        program [] .scopeStack i [] scopeId=
-       scopeId program [] .currentProcScope !=
+       scopeId ScopeId.GLOBAL !=
      do
        program .identifiers fullName program [] .currentFile scopeId IdName new map.at
        $ optional.hasData if return end ..drop
@@ -722,14 +739,24 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
             program [] .stack
               list.pop asType =:: procType
             program .stack=
-            ## TODO remember scope
+            program openScope ## store proc-body within proc-scope
             token .Block .target =:: procLength
             program [] .memory
               tokens ip 1 + procLength slice.getSlice mixedArena.copySlice =:: procBody
+              ## TODO? reuse stack/namespace copy if it has not changed from last proc
+              program [] .scopeStack list.asSlice mixedArena.copySlice =:: scopeStack
+              program [] .currentNamespace sb.chars mixedArena.copyMutableSlice =:: procNamespace
               procType .Procedure
-                procBody slice.freeze ProcImplementation .code
+                ## ProcCode
+                  procBody slice.freeze
+                  procNamespace
+                  scopeStack slice.freeze
+                  program [] .currentScope
+                  program [] .currentFile
+                ProcCode new ProcImplementation .code
               Procedure new mixedArena.copyValue =:: procPtr
             program .memory=
+            program closeScope ## close proc scope
             program [] .stack
               procPtr Value .Procedure procType TypedValue new list.append
             program .stack=
@@ -1119,9 +1146,7 @@ proc( Token slice : tokens Program ptr.mut : program -> ) =>: evaluateBlock
         break
       BeginNamespace case
         program [] .currentScope ScopeId.GLOBAL != if
-          ## TODO is there a good way to resolve names when scoped variables can be in different namespaces
-          ##  ->?  somehow link local namespace to scope (? pseudo-scope to notify name-resolver to search in parent namespace)
-          ##  three types of ids on scope stack: scopeId, procScopeId, parentNamespace
+          ## TODO? should namespaces within scopes (outside procedures) be allowed
           "error handling" ..panic ## namespaces are not allowed within scopes
         end
         program [] .currentNamespace
@@ -1149,18 +1174,16 @@ proc( string : path Program ptr.mut : program -> ) =>: importFile
   path program copyName =:: fixedPath
   program [] .currentFile =:: oldFileId
   program [] .currentScope =:: oldScopeId
-  program [] .currentProcScope =:: oldProcScopeId
   program [] .scopeCounter =:: oldScopeCounter
   ScopeId.GLOBAL program .currentScope=
-  ScopeId.GLOBAL program .currentProcScope=
-  0:ScopeId program .scopeCounter=
+  ## 0:ScopeId program .scopeCounter= ## TODO bring back per-file scope couter
   program [] .imports
     $ .length FileId cast program .currentFile=
     fixedPath list.append
   program .imports=
   program .tokens [] .length =:: tokenOffset
   program [] .currentNamespace =:: oldNamespace
-  128 sb.create program .currentNamespace= ## TODO? is there a way to avoid allocating a seperate buffer for each file
+  128 sb.create program .currentNamespace= ## TODO? avoid allocating a seperate buffer for each file
   ## TODO handle IO errors
   path io.OPEN_READ io.fopenStr ..drop =:: srcFile
   4096 sb.create
@@ -1173,8 +1196,7 @@ proc( string : path Program ptr.mut : program -> ) =>: importFile
   program [] .tokens list.asSlice tokenOffset slice.tail program evaluateBlock
   oldFileId program .currentFile=
   oldScopeId program .currentScope=
-  oldProcScopeId program .currentProcScope=
-  oldScopeCounter program .scopeCounter=
+  ## oldScopeCounter program .scopeCounter=
   program [] .currentNamespace sb.free ..drop
   oldNamespace program .currentNamespace=
 end
@@ -1207,7 +1229,6 @@ proc( -> ) =>: main
     16 string list.create
     64 ScopeId list.create
     FileId.GLOBAL
-    ScopeId.GLOBAL
     ScopeId.GLOBAL
     0:ScopeId
     128 BlockInfo list.create

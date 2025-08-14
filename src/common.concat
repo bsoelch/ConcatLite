@@ -476,8 +476,15 @@ proc( Token : token -> ) =>: export: printToken
   end
 end
 type : export: BuiltIn
-union(
+struct(
   Token slice : code
+  char8 slice.mut : namespace
+  ScopeId slice : scopeStack
+  ScopeId : scope
+  FileId : file
+) =:: export: ProcCode
+union(
+  ProcCode : code
   BuiltIn : builtIn
 ) =:: export: ProcImplementation
 struct(
@@ -529,7 +536,6 @@ struct(
   ScopeId list : scopeStack
   FileId : currentFile
   ScopeId : currentScope
-  ScopeId : currentProcScope
   ScopeId : scopeCounter
   ## parser state
   BlockInfo list : openBlocks
